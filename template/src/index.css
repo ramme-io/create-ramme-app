@@ -1,0 +1,11 @@
+@import '@ramme-io/ui/style.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* Add this new rule */
+.sidebar-panel {
+  min-width: 220px !important;
+}
