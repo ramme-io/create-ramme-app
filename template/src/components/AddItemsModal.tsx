@@ -10,19 +10,19 @@ import {
 
 // Mock data is fine as is
 const mockData = [
-  { id: 34982, name: 'Entity Name 1', sector: 'Technology' },
-  { id: 34983, name: 'Entity Name 2', sector: 'Finance' },
-  { id: 34984, name: 'Entity Name 3', sector: 'Healthcare' },
-  { id: 34985, name: 'Global Corp', sector: 'Finance' },
-  { id: 34986, name: 'Innovate LLC', sector: 'Technology' },
+  { id: 34561, name: 'Item Name 1', color: 'Blue' },
+  { id: 76552, name: 'Item Name 2', color: 'Red' },
+  { id: 54364, name: 'Item Name 3', color: 'Yellow' },
+  { id: 87655, name: 'Item Name 3', color: 'Red' },
+  { id: 98676, name: 'Item Name 3', color: 'Yellow' },
 ];
 
-interface AddEntitiesModalProps {
+interface AddItemsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const AddEntitiesModal: React.FC<AddEntitiesModalProps> = ({
+export const AddItemsModal: React.FC<AddItemsModalProps> = ({
   isOpen,
   onClose,
 }) => {
@@ -48,8 +48,8 @@ export const AddEntitiesModal: React.FC<AddEntitiesModalProps> = ({
       field: 'id',
     },
     {
-      headerName: 'Sector',
-      field: 'sector',
+      headerName: 'Color',
+      field: 'color',
     },
   ], []);
 
@@ -60,7 +60,7 @@ export const AddEntitiesModal: React.FC<AddEntitiesModalProps> = ({
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary">Add to Workflow</Button>
+        <Button variant="primary">Add Items</Button>
       </div>
     </div>
   );
@@ -69,11 +69,11 @@ export const AddEntitiesModal: React.FC<AddEntitiesModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Add Entities"
+      title="Add Items"
       footer={modalFooter}
     >
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Select Entity(s)</h3>
+        <h3 className="text-lg font-semibold">Select Item(s)</h3>
         <SearchInput placeholder="Search by name" />
         <DataTable
           // --- FIX: Use the correct prop names ---

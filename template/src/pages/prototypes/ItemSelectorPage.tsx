@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { Button, PageHeader } from '@ramme-io/ui';
-import { AddEntitiesModal } from '../../components/AddEntitiesModal';
+import { AddItemsModal } from '../../components/AddItemsModal';
 
 
 
-const EntitySelectorPage = () => {
+const ItemSelectorPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
     <div>
       <PageHeader
-        title="Prototype: Entity Selection"
-        description="This page demonstrates the 'Add Entities' modal component."
+        title="Prototype: Item Selection"
+        description="This page demonstrates the 'Add Items' modal component."
       />
       <div className="mt-8">
         <Button onClick={() => setIsModalOpen(true)}>
@@ -19,7 +19,7 @@ const EntitySelectorPage = () => {
         </Button>
       </div>
 
-      <AddEntitiesModal
+      <AddItemsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
@@ -27,4 +27,4 @@ const EntitySelectorPage = () => {
   );
 };
 
-export default EntitySelectorPage;
+export default ItemSelectorPage;

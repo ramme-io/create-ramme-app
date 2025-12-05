@@ -4,7 +4,6 @@ import { type SitemapEntry } from '../../core/sitemap-entry';
 import Dashboard from '../../pages/Dashboard';
 import AiChat from '../../pages/AiChat';
 import DataGridPage from '../../pages/DataGridPage';
-import AccountingLedgerPage from '../../pages/AccountingLedgerPage';
 import Styleguide from '../../pages/styleguide/Styleguide';
 import DataLayout from '../../layouts/DataLayout';
 
@@ -23,7 +22,7 @@ import ColorsSection from '../../pages/styleguide/sections/colors/ColorsSection'
 import IconsSection from '../../pages/styleguide/sections/icons/IconsSection';
 
 // --- ADD THIS IMPORT ---
-import EntitySelectorPage from '../../pages/prototypes/EntitySelectorPage';
+import ItemSelectorPage from '../../pages/prototypes/ItemSelectorPage';
 
 
 export const dashboardSitemap: SitemapEntry[] = [
@@ -41,7 +40,7 @@ export const dashboardSitemap: SitemapEntry[] = [
     path: 'prototypes/entity-selector',
     title: 'Entity Prototype',
     icon: 'beaker',
-    component: EntitySelectorPage,
+    component: ItemSelectorPage,
   },
   {
     id: 'ai-chat',
@@ -57,8 +56,7 @@ export const dashboardSitemap: SitemapEntry[] = [
     icon: 'database',
     component: DataLayout,
     children: [
-      { id: 'grid', path: 'grid', title: 'Data Grid', component: DataGridPage, icon: 'table' },
-      { id: 'ledger', path: 'ledger', title: 'Ledger', component: AccountingLedgerPage, icon: 'book-open' },
+      { id: 'users', path: 'users', title: 'Users', component: DataGridPage, icon: 'table' }
     ],
   },
   {
