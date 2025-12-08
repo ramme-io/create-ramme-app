@@ -2,17 +2,17 @@
 
 [![NPM Version](https://img.shields.io/npm/v/@ramme-io/create-app.svg)](https://www.npmjs.com/package/@ramme-io/create-app) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**The clean-room environment for modern product design.**
+**A quick start for prototypes.**
 
-This repository is the official scaffolding tool for the Ramme ecosystem. It automates the setup of a production-grade frontend environment, pre-wiring the **Ramme UI** component library with the industry's most robust open-source technologies.
+This repository is the scaffolding tool for the Ramme collection. It spins up a standard frontend environment, with the **Ramme UI** component library included.
 
-Designed for speed and structural integrity, this starter kit removes the friction of configuration so you can move from concept to interactive prototype in seconds.
+Designed for quick builds, this starter kit standardizes configurations so you can move from concept to interactive prototype in seconds.
 
 ---
 
 ## Quick Start
 
-To scaffold a new project, run the initialization command in your terminal. This will generate a fresh directory with all dependencies linked and configured.
+To spin up a new project, run the initialization command in your terminal. This will generate a new folder with all resources linked and configured.
 
 *(Replace `my-new-project` with your desired folder name).*
 
@@ -24,11 +24,11 @@ This single command will:
 1.  **Scaffold** a high-performance Vite project structure.
 2.  **Install** React 19, TypeScript, and Tailwind CSS.
 3.  **Configure** the `@ramme-io/ui` component library and design tokens.
-4.  **Optimize** linting and build settings for immediate deployment.
+4.  **Optimize** limited configuration for customization.
 
 ---
 
-## Launch Sequence
+## Getting Started
 
 Once the scaffolding is complete, initialize your local environment:
 
@@ -43,18 +43,18 @@ pnpm install
 # or npm install
 ```
 
-**3. Ignite the dev server**
+**3. Start the dev server**
 ```bash
 pnpm run dev
 ```
 
-Your prototype is now live at `http://localhost:5173`.
+Your prototype is now running locally at `http://localhost:5173`.
 
 ---
 
 ## The Tech Stack
 
-This starter kit is not a proprietary framework; it is an opinionated orchestration of the best open-source tools available:
+This starter kit is an opinionated selection of the best open-source tools available:
 
 * **Vite:** Next-generation tooling for instant server start and lightning-fast HMR (Hot Module Replacement).
 * **React:** The standard library for building composable user interfaces.
@@ -64,12 +64,10 @@ This starter kit is not a proprietary framework; it is an opinionated orchestrat
 
 ---
 
-## The Ramme Ecosystem
-
-This tool is part of a suite of developer resources maintained by **Excesspool Limited Liability Company**:
+## Project Links
 
 * **`@ramme-io/ui`**: The core library of visual primitives.
-* **`@ramme-io/create-app`** (This Repository): The CLI scaffolding tool.
+* **`@ramme-io/create-app`** (This Repository): The quick start kit.
 
 ---
 
