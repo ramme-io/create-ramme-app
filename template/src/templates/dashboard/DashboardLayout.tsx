@@ -1,5 +1,4 @@
-// ramme-app-starter/template/src/templates/dashboard/DashboardLayout.tsx
-import React from 'react';
+import React, { useState } from 'react'; // <-- Added useState
 import { Outlet, NavLink } from 'react-router-dom';
 import {
   Sidebar,
@@ -12,11 +11,13 @@ import {
   useSidebar,
   Button,
   Icon,
+  ChatFAB, // <-- NEW: Import FAB
 } from '@ramme-io/ui';
 import { dashboardSitemap } from './dashboard.sitemap';
 import { SitemapProvider } from '../../contexts/SitemapContext';
 import PageTitleUpdater from '../../components/PageTitleUpdater';
 import AppHeader from '../../components/AppHeader';
+import { AIChatWidget } from '../../components/AIChatWidget'; // <-- NEW: Import Widget
 
 // NavLink wrapper - Correct
 const SidebarNavLink = React.forwardRef<HTMLAnchorElement, any>(
@@ -51,8 +52,6 @@ const AppSidebarContent: React.FC = () => {
               <SidebarMenuItem
                 as={SidebarNavLink}
                 href={item.path ? `/dashboard/${item.path}` : '/dashboard'}
-                // --- THIS IS THE FIX ---
-                // Force exact match for all parent links
                 end
                 icon={item.icon ? <Icon name={item.icon} /> : undefined}
                 tooltip={item.title}
@@ -66,12 +65,10 @@ const AppSidebarContent: React.FC = () => {
                     key={child.id}
                     as={SidebarNavLink}
                     href={`/dashboard/${item.path}/${child.path}`}
-                    // --- THIS IS THE FIX ---
-                    // 'end' was already here, which is correct
                     end
                     icon={child.icon ? <Icon name={child.icon} /> : undefined}
                     tooltip={child.title}
-                    className="pl-10" // Indent child items
+                    className="pl-10" 
                   >
                     {child.title}
                   </SidebarMenuItem>
@@ -88,11 +85,14 @@ const AppSidebarContent: React.FC = () => {
 
 // Main Layout Component
 const DashboardLayout: React.FC = () => {
+  // 1. STATE: Track if the chat window is open
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
   return (
     <SitemapProvider value={dashboardSitemap}>
       <PageTitleUpdater />
       <SidebarProvider>
-        <div className="flex h-screen bg-background text-foreground">
+        <div className="flex h-screen bg-background text-foreground relative">
           <Sidebar>
             <AppSidebarContent />
           </Sidebar>
@@ -102,6 +102,22 @@ const DashboardLayout: React.FC = () => {
               <Outlet />
             </main>
           </div>
+
+          {/* --- AI COPILOT SECTION --- */}
+          
+          {/* 2. The Widget: Only renders when open */}
+          {isChatOpen && (
+            <AIChatWidget onClose={() => setIsChatOpen(false)} />
+          )}
+
+          {/* 3. The Button: Fixed to bottom-right */}
+          <div className="fixed bottom-6 right-6 z-50">
+            <ChatFAB 
+              onClick={() => setIsChatOpen(!isChatOpen)} 
+              tooltipContent={isChatOpen ? "Close Assistant" : "Open Bodewell AI"}
+            />
+          </div>
+
         </div>
       </SidebarProvider>
     </SitemapProvider>

@@ -1,74 +1,60 @@
-// src/pages/AiChat.tsx
-import React, { useState, useEffect } from 'react';
+// ramme-app-starter/template/src/pages/AiChat.tsx
+import React, { useState } from 'react';
 import {
   Card,
   PageHeader,
   Conversation,
   Message,
   PromptInput,
-  type MessageProps,
 } from '@ramme-io/ui';
-
-// The MessageData type now directly uses MessageProps from the library
-type MessageData = Omit<MessageProps, 'onSuggestionClick'>;
+import { useMockChat } from '../hooks/useMockChat'; // <--- The new brain
 
 const AiChat: React.FC = () => {
-  const [messages, setMessages] = useState<MessageData[]>([
-    { author: 'AI Assistant', content: 'Hello! How can I help you build your prototype today?' },
-  ]);
-  const [newMessage, setNewMessage] = useState('');
+  const { messages, isLoading, sendMessage } = useMockChat();
+  const [input, setInput] = useState('');
 
-  const addMessage = (message: MessageData) => {
-    setMessages(prev => [...prev, message]);
-  }
-
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === '') return;
-    addMessage({ author: 'User', content: newMessage, isUser: true });
-    setNewMessage('');
+    sendMessage(input);
+    setInput('');
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    addMessage({ author: 'User', content: suggestion, isUser: true });
-  }
-
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.isUser) {
-      addMessage({ author: 'AI Assistant', loading: true });
-
-      setTimeout(() => {
-        setMessages(prev => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = {
-            author: 'AI Assistant',
-            content: "That's a great idea! I am a mock AI, but I can certainly help you plan that. What components should be on the dashboard?",
-            suggestions: ["Stat Cards", "A Bar Chart", "A Data Table"]
-          };
-          return newMessages;
-        });
-      }, 1500);
-    }
-  }, [messages]);
-
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 h-[calc(100vh-64px)] flex flex-col">
       <PageHeader
         title="AI Assistant"
-        description="This is the foundational interface for the Ramme AI prototyping assistant."
+        description="Full-screen command center for Ramme AI."
       />
-      <Card className="flex flex-col h-[600px]">
-        <Conversation>
-          {messages.map((msg, index) => (
-            <Message key={index} {...msg} onSuggestionClick={handleSuggestionClick} />
-          ))}
-        </Conversation>
-        <PromptInput
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onSubmit={handleSendMessage}
-        />
+      
+      {/* We use flex-1 on the Card to make it fill the remaining screen space 
+         perfectly, creating that immersive "ChatGPT" feel.
+      */}
+      <Card className="flex-1 flex flex-col min-h-0 shadow-sm border-border/50">
+        <div className="flex-1 overflow-hidden">
+          <Conversation>
+            {messages.map((msg) => (
+              <Message
+                key={msg.id}
+                author={msg.author}
+                content={msg.content}
+                isUser={msg.isUser}
+                loading={msg.loading}
+                suggestions={msg.suggestions}
+                onSuggestionClick={(s) => sendMessage(s)}
+              />
+            ))}
+            {isLoading && <Message author="Bodewell AI" isUser={false} loading />}
+          </Conversation>
+        </div>
+        
+        <div className="p-4 border-t bg-card">
+          <PromptInput
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onSubmit={handleSubmit}
+            placeholder="Type a command or ask a question..."
+          />
+        </div>
       </Card>
     </div>
   );
