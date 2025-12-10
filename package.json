@@ -16,7 +16,7 @@
     "pack-tarball": "npm pack"
   },
   "dependencies": {
-    "@ramme-io/ui": "^0.0.1",
+    "@ramme-io/ui": "^1.1.0",
     "ag-grid-community": "^34.1.2",
     "ag-grid-enterprise": "^34.1.2",
     "ag-grid-react": "^34.1.2",
