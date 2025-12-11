@@ -1,6 +1,6 @@
 {
   "name": "@ramme-io/create-app",
-  "version": "1.1.2",
+  "version": "1.1.1",
   "type": "module",
   "bin": {
     "create-ramme-app": "./index.js"
@@ -16,7 +16,7 @@
     "pack-tarball": "npm pack"
   },
   "dependencies": {
-    "@ramme-io/ui": "^1.1.0",
+    "@ramme-io/ui": "^1.1.1",
     "ag-grid-community": "^34.1.2",
     "ag-grid-enterprise": "^34.1.2",
     "ag-grid-react": "^34.1.2",
