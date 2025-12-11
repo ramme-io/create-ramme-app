@@ -22,7 +22,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 
 // --- STRATEGIC IMPORTS ---
-import { appManifest } from '../config/app.manifest';
+import { appManifest } from '../config/navigation';
 import type { ManifestLink } from '../core/manifest-types';
 import TemplateSwitcher from './TemplateSwitcher';
 import rammeLogo from '../assets/orange.png'; // <-- 1. IMPORT THE LOGO

@@ -29,7 +29,7 @@ import {
 import { settingsSitemap } from './settings.sitemap';
 import rammeLogo from '../../assets/orange.png';
 import { useAuth } from '../../contexts/AuthContext';
-import { appManifest } from '../../config/app.manifest';
+import { appManifest } from '../../config/navigation';
 import type { ManifestLink } from '../../core/manifest-types';
 import { SitemapProvider } from '../../contexts/SitemapContext';
 import PageTitleUpdater from '../../components/PageTitleUpdater';
