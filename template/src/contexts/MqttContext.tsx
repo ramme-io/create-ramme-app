@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import mqtt, { MqttClient } from 'mqtt';
+import mqtt, { type MqttClient } from 'mqtt';
 
 interface MqttContextType {
   isConnected: boolean;
