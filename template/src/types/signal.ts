@@ -10,6 +10,7 @@
 export type SignalStatus = 'fresh' | 'stale' | 'disconnected' | 'error';
 
 export interface Signal<T = any> {
+  max: number;
   id: string;          // The unique ID (e.g., "temp_01")
   value: T;            // The actual data (e.g., 24.5)
   unit?: string;       // Optional unit (e.g., "°C")
