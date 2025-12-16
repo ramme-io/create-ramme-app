@@ -1,36 +1,25 @@
-# Ramme App Starter
+# Create Ramme App
 
 [![NPM Version](https://img.shields.io/npm/v/@ramme-io/create-app.svg)](https://www.npmjs.com/package/@ramme-io/create-app) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**A quick start for prototypes.**
+The easiest way to start a new **Ramme** project.
+This CLI tool scaffolds a production-ready React application configured with:
+- **@ramme/ui:** Our pre-built component library.
+- **Tailwind CSS:** Fully configured for the Ramme design system.
+- **Vite:** For lightning-fast development.
+- **TypeScript:** For type-safe code.
 
-This repository is the scaffolding tool for the Ramme collection. It spins up a standard frontend environment, with the **Ramme UI** component library included.
+## 🚀 Quick Start
 
-Designed for quick builds, this starter kit standardizes configurations so you can move from concept to interactive prototype in seconds.
-
----
-
-## Quick Start
-
-To spin up a new project, run the initialization command in your terminal. This will generate a new folder with all resources linked and configured.
-
-*(Replace `my-new-project` with your desired folder name).*
+Get started in seconds. No global installation required.
 
 ```bash
-npm create @ramme-io/app@latest my-new-project
+npm create @ramme-io/app@latest
+# or
+npm init @ramme-io/app@latest
 ```
 
-This single command will:
-1.  **Scaffold** a high-performance Vite project structure.
-2.  **Install** React 19, TypeScript, and Tailwind CSS.
-3.  **Configure** the `@ramme-io/ui` component library and design tokens.
-4.  **Optimize** limited configuration for customization.
-
----
-
-## Getting Started
-
-Once the scaffolding is complete, initialize your local environment:
+You will be prompted to name your project.
 
 **1. Enter the project directory**
 ```bash

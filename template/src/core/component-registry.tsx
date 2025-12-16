@@ -12,21 +12,30 @@ import {
 } from '@ramme-io/ui';
 
 /**
- * The Registry maps the "string" name of a component (from the JSON manifest)
+ * The Registry maps the "string" name of a component (from the AI Manifest)
  * to the actual React component implementation.
  */
 export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
-  // IoT Primitives
-  DeviceCard,
-  
-  // Data Display
+  // --- Data Display ---
   StatCard,
   BarChart,
   LineChart,
   PieChart,
   DataTable,
   
-  // Layout & Feedback
+  // --- IoT & Controls ---
+  DeviceCard,
+  
+  // MAPPING STRATEGY: 
+  // The Wizard generates specific UI intents ("Gauge", "Toggle"). 
+  // For now, we map these to our versatile 'DeviceCard' primitive.
+  // In the future, we will build dedicated components for each.
+  GaugeCard: DeviceCard,      
+  SparklineCard: DeviceCard,  
+  ToggleCard: DeviceCard,     
+  SliderCard: DeviceCard,     
+
+  // --- Layout & Feedback ---
   Card,
   Alert,
   EmptyState,
@@ -38,6 +47,7 @@ export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
  */
 export const getComponent = (name: string) => {
   const Component = COMPONENT_REGISTRY[name];
+
   if (!Component) {
     console.warn(`[Registry] Unknown component type: "${name}"`);
     return () => (

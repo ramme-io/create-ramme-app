@@ -1,5 +1,6 @@
 // src/data/mockData.ts
 
+// --- 1. Your Existing Examples ---
 export const mockChartData = [
   { name: 'Jan', uv: 400, pv: 240 },
   { name: 'Feb', uv: 300, pv: 139 },
@@ -17,3 +18,26 @@ export const mockTableData = [
   { make: 'Mercedes', model: 'EQS', price: 102310, electric: true },
   { make: 'BMW', model: 'i4', price: 51400, electric: true },
 ];
+
+// 2. FIXED: Energy Data (Recharts Format)
+// Recharts expects an Array of Objects, NOT { labels, datasets }
+export const energyHistoryData = [
+  { time: "12am", value: 12 },
+  { time: "4am", value: 19 },
+  { time: "8am", value: 3 },
+  { time: "12pm", value: 5 },
+  { time: "4pm", value: 2 },
+  { time: "8pm", value: 3 }
+];
+
+// --- 3. The Lookup Registry ---
+// This allows the Manifest to refer to data by string ID.
+export const MOCK_DATA_REGISTRY: Record<string, any> = {
+  'energy_history': energyHistoryData,
+  'demo_chart': mockChartData,
+  'demo_cars': mockTableData
+};
+
+export const getMockData = (id: string) => {
+  return MOCK_DATA_REGISTRY[id] || null;
+};

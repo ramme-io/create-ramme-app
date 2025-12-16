@@ -1,40 +1,51 @@
-/**
- * @file manifest-types.ts
- * @repository ramme-app-starter
- * @description Defines the canonical types for "link" entries used in
- * the global app.manifest.ts. These are distinct from SitemapEntry
- * as they do not require a `component` and are used for shared
- * navigation elements like user menus, settings, or footers.
- */
-import { type IconName } from '@ramme-io/ui';
+// src/core/manifest-types.ts
 
-export interface ManifestLink {
-  /**
-   * A unique string identifier.
-   * e.g., 'user.profile'
-   */
+/**
+ * The fundamental unit of the UI.
+ * Corresponds to a specific React component in the registry.
+ */
+export interface Block {
   id: string;
-  
-  /**
-   * The URL path for the link.
-   * e.g., '/profile', '/settings/billing'
-   */
-  path: string;
-  
-  /**
-   * The human-readable name for the link.
-   * e.g., 'Your Profile', 'Billing'
-   */
+  type: string; // e.g., 'DeviceCard', 'StatCard', 'LineChart'
+  props: Record<string, any>; // Static props (title, default values)
+  layout?: {
+    colSpan?: number;
+    rowSpan?: number;
+  };
+}
+
+/**
+ * A horizontal container that groups blocks together.
+ * Maps to a CSS Grid or Flex container.
+ */
+export interface PageSection {
+  id: string;
+  title?: string;
+  description?: string;
+  layout?: {
+    columns?: number; // e.g., 3 (for a 3-column grid)
+    variant?: 'grid' | 'stack';
+  };
+  blocks: Block[];
+}
+
+/**
+ * A top-level page in the application.
+ */
+export interface PageDefinition {
+  id: string;
+  slug: string;
   title: string;
-  
-  /**
-   * (Optional) The name of the icon from @ramme-io/ui.
-   * e.g., 'user', 'settings'
-   */
-  icon?: IconName;
-  
-  /**
-   * (Optional) An array of nested links for creating sub-menus.
-   */
-  children?: ManifestLink[];
+  description?: string;
+  sections: PageSection[];
+}
+
+/**
+ * The "Brain" of the application.
+ * This JSON structure drives the entire UI.
+ */
+export interface AppManifest {
+  appName: string;
+  version: string;
+  pages: PageDefinition[];
 }

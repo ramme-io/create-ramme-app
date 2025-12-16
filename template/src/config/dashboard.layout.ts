@@ -62,6 +62,18 @@ export const dashboardLayout: DashboardSection[] = [
           trend: "CPU Load"
         },
         signalId: "server_01"
+      },
+      {
+        id: "dev_4",
+        component: "DeviceCard",
+        props: {
+          title: "Front Door",
+          description: "Entryway • Camera 01",
+          icon: "lock", // This maps to the Lucide icon 'lock'
+          status: "offline", // Default state before data loads
+          trend: "Locked"
+        },
+        signalId: "front_door_lock" // <--- We will wire this next
       }
     ]
   },

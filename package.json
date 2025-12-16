@@ -13,7 +13,8 @@
     "dev": "cd template && vite",
     "build": "cd template && tsc && vite build",
     "preview": "cd template && vite preview",
-    "pack-tarball": "npm pack"
+    "pack-tarball": "npm pack",
+    "bundle:ai": "repomix --ignore '**/*.lock,**/dist/**,**/template/dist/**,**/template/node_modules/**' --output 'ramme-starter-context.txt'"
   },
   "dependencies": {
     "@ramme-io/ui": "^1.1.1",

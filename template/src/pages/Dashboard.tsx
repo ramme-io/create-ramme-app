@@ -1,65 +1,105 @@
 import React from 'react';
-import { PageHeader } from '@ramme-io/ui';
+import { PageHeader, ToggleSwitch, Button, Icon } from '@ramme-io/ui';
 
 // --- IMPORTS ---
 import { getComponent } from '../core/component-registry';
-import { dashboardLayout } from '../config/dashboard.layout';
-import { useGeneratedSignals } from '../generated/hooks'; // <-- The New Engine
+import { appManifest } from '../config/app.manifest'; 
+import { useGeneratedSignals } from '../generated/hooks';
+import type { EntityDefinition } from '../types/schema';
+import { useAction } from '../hooks/useAction';
+
+// --- DEV TOOLS (Restored) ---
+import { useDevTools } from '../hooks/useDevTools';
+import { GhostOverlay } from '../components/dev/GhostOverlay';
 
 const Dashboard: React.FC = () => {
-  // 1. Initialize the "Brain"
-  // This single line replaces all the hardcoded hooks.
+  // 1. Initialize State Machine
   const signals = useGeneratedSignals();
+  const { meta, domain } = appManifest;
+  
+  // 2. Initialize DevTools
+  const { isGhostMode, toggleGhostMode } = useDevTools();
+  const { sendAction } = useAction();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative">
       <PageHeader
-        title="Command Center"
-        description="Real-time device monitoring and business analytics."
+        title={meta.name || "Command Center"}
+        description={meta.description || "Real-time device monitoring."}
+        actions={
+          // 3. Restore the Toggle Button
+          <Button 
+            variant={isGhostMode ? 'accent' : 'outline'} 
+            size="sm"
+            onClick={toggleGhostMode}
+            title="Toggle Ghost Mode (Ctrl+Shift+G)"
+          >
+            <Icon name={isGhostMode ? 'eye' : 'eye-off'} className="mr-2" />
+            {isGhostMode ? 'Ghost Mode: ON' : 'Dev Tools'}
+          </Button>
+        }
       />
 
       {/* --- DYNAMIC RUNTIME ENGINE --- */}
-      {dashboardLayout.map((section) => (
-        <div key={section.id}>
-          <h3 className="text-lg font-semibold mb-4 text-foreground">
-            {section.title}
-          </h3>
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        
+        {domain.entities.map((entity: EntityDefinition) => {
+          // A. Resolve Component & Data
+          const componentType = entity.ui?.dashboardComponent || 'DeviceCard';
+          const Component = getComponent(componentType);
           
-          <div 
-            className="grid gap-6"
-            // Use the 'columns' prop from the manifest to control density
-            style={{ 
-              gridTemplateColumns: `repeat(${section.columns || 3}, minmax(300px, 1fr))` 
-            }}
-          >
-            {section.items.map((item) => {
-              const Component = getComponent(item.component);
-              
-              // Prepare Props
-              let dynamicProps = { ...item.props };
+          const primarySignalId = entity.signals[0];
+          const signal = primarySignalId ? signals[primarySignalId as keyof typeof signals] : null;
 
-              // Inject Signal Data
-              if (item.signalId && signals[item.signalId as keyof typeof signals]) {
-                const sig = signals[item.signalId as keyof typeof signals];
-                
-                // Standard Value Injection
-                dynamicProps.value = `${sig.value}${sig.unit}`;
-                
-                // Auto-Status Logic (The "Smart" Layer)
-                // If a signal exceeds its defined max, auto-flag it as error
-                if (sig.value > (sig.max || 100)) {
-                    dynamicProps.status = 'error';
-                    dynamicProps.trend = 'CRITICAL';
-                }
-              }
+          // B. Prepare Props
+          const dynamicProps: any = {
+            title: entity.name,
+            description: entity.description || `ID: ${entity.id}`,
+            icon: entity.ui?.icon || 'activity',
+            status: 'offline',
+          };
 
-              return (
-                <Component key={item.id} {...dynamicProps} />
+          // C. Inject Signal Data
+          if (signal) {
+            dynamicProps.value = `${signal.value} ${signal.unit || ''}`;
+            dynamicProps.status = 'active';
+
+            if (componentType === 'ToggleCard') {
+              dynamicProps.children = (
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm text-muted-foreground">Active</span>
+                  <ToggleSwitch 
+                    label="Toggle"
+                    checked={(signal.value as any) === true || signal.value === 'true' || signal.value === 1}
+                    // THE UPDATE:
+                    onChange={(val) => sendAction(entity.id, val)} 
+                  />
+                </div>
               );
-            })}
-          </div>
+              delete dynamicProps.value; 
+            }
+          }
+
+          return (
+            // 4. Restore the GhostOverlay Wrapper
+            <GhostOverlay
+              key={entity.id}
+              isActive={isGhostMode}
+              componentId={entity.id}
+              componentType={componentType}
+              signalId={primarySignalId}
+            >
+              <Component {...dynamicProps} />
+            </GhostOverlay>
+          );
+        })}
+      </div>
+      
+      {domain.entities.length === 0 && (
+        <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400">
+          <p>No entities defined.</p>
         </div>
-      ))}
+      )}
     </div>
   );
 };

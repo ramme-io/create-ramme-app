@@ -1,36 +1,26 @@
-# Ramme App Starter
+## 🚀 Quick Start for Designers
 
-[![NPM Version](https://img.shields.io/npm/v/@ramme-io/create-app.svg)](https://www.npmjs.com/package/@ramme-io/create-app) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+You don't need to be a coding wizard to use this. Just follow these 3 steps:
 
-**A quick start for prototypes.**
+### 1. Setup (Do this once)
+You need **Node.js** installed on your computer.
+- Open your terminal (Command Prompt or Terminal app).
+- Type `node -v` to see if you have it. If not, download it from [nodejs.org](https://nodejs.org).
 
-This repository is the scaffolding tool for the Ramme collection. It spins up a standard frontend environment, with the **Ramme UI** component library included.
-
-Designed for quick builds, this starter kit standardizes configurations so you can move from concept to interactive prototype in seconds.
-
----
-
-## Quick Start
-
-To spin up a new project, run the initialization command in your terminal. This will generate a new folder with all resources linked and configured.
-
-*(Replace `my-new-project` with your desired folder name).*
+### 2. Create your Project
+Run this magic command in your terminal:
 
 ```bash
-npm create @ramme-io/app@latest my-new-project
+npm create @ramme-io/app@latest
 ```
 
-This single command will:
-1.  **Scaffold** a high-performance Vite project structure.
-2.  **Install** React 19, TypeScript, and Tailwind CSS.
-3.  **Configure** the `@ramme-io/ui` component library and design tokens.
-4.  **Optimize** limited configuration for customization.
+It will ask you for a project name (e.g., my-smart-home). Type it and hit Enter.
 
 ---
 
-## Getting Started
+## Run it!
 
-Once the scaffolding is complete, initialize your local environment:
+You will be prompted to name your project.
 
 **1. Enter the project directory**
 ```bash
@@ -51,27 +41,3 @@ pnpm run dev
 Your prototype is now running locally at `http://localhost:5173`.
 
 ---
-
-## The Tech Stack
-
-This starter kit is an opinionated selection of the best open-source tools available:
-
-* **Vite:** Next-generation tooling for instant server start and lightning-fast HMR (Hot Module Replacement).
-* **React:** The standard library for building composable user interfaces.
-* **TypeScript:** Statically typed JavaScript for scalable, robust application logic.
-* **Tailwind CSS:** A utility-first styling engine configured with Ramme design tokens.
-* **@ramme-io/ui:** A pre-installed suite of accessible, unstyled primitives based on Radix UI.
-
----
-
-## Project Links
-
-* **`@ramme-io/ui`**: The core library of visual primitives.
-* **`@ramme-io/create-app`** (This Repository): The quick start kit.
-
----
-
-## License
-
-Copyright © 2025 Excesspool Limited Liability Company.
-This project is licensed under the [MIT License](LICENSE).

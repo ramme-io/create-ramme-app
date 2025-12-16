@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "status": 200,
+    "region": "us-east-1"
+  },
+  "data": {
+    "finance": {
+      "mrr": 99999.00,
+      "growth": 0.12
+    },
+    "users": {
+      "total": 1245,
+      "active": 890
+    }
+  }
+}

@@ -1,8 +1,7 @@
 import { z } from 'zod';
 
 // ------------------------------------------------------------------
-// 1. Signal Schema (The "Nerve")
-// Defines a single data point (e.g., "Living Room Temp", "Light Switch")
+// 1. Signal Schema
 // ------------------------------------------------------------------
 export const SignalSchema = z.object({
   id: z.string().min(1, "Signal ID is required"),
@@ -10,15 +9,16 @@ export const SignalSchema = z.object({
   description: z.string().optional(),
   
   // Classification
-  kind: z.enum(['sensor', 'actuator', 'setpoint', 'metric', 'status']),
+  kind: z.enum(['sensor', 'actuator', 'setpoint', 'metric', 'status', 'kpi']),
   
-  // Data Source Configuration (CRITICAL for the Adapter Factory)
+  // Data Source Configuration
   source: z.enum(['mock', 'mqtt', 'http', 'derived', 'local']),
   
-  // Source-Specific Config 
-  topic: z.string().optional(),      // For MQTT (e.g., "home/living/temp")
-  endpoint: z.string().optional(),   // For HTTP (e.g., "/api/v1/weather")
-  refreshRate: z.number().default(1000), 
+  // Protocol-Specific Config 
+  topic: z.string().optional(),      // For MQTT
+  endpoint: z.string().optional(),   // For HTTP
+  jsonPath: z.string().optional(),   // For parsing nested API responses
+  refreshRate: z.number().optional().default(1000), 
   
   // Value Configuration
   defaultValue: z.any().optional(),
@@ -33,8 +33,7 @@ export type SignalDefinition = z.infer<typeof SignalSchema>;
 
 
 // ------------------------------------------------------------------
-// 2. Entity Schema (The "Atom")
-// Defines a grouping of signals into a logical object (e.g., "Smart Thermostat")
+// 2. Entity Schema
 // ------------------------------------------------------------------
 export const EntitySchema = z.object({
   id: z.string(),
@@ -42,26 +41,26 @@ export const EntitySchema = z.object({
   description: z.string().optional(),
   
   // Taxonomy
-  type: z.string(), // e.g., 'device', 'room', 'service'
-  category: z.enum(['hardware', 'software', 'logical']).default('logical'),
+  type: z.string(), 
+  category: z.string().default('logical'), 
 
-  // The Signals that belong to this entity (References Signal IDs)
+  // Linkage
   signals: z.array(z.string()), 
   
-  // UI Hints (How should this entity look?)
+  // UI Hints
   ui: z.object({
-    icon: z.string().optional(), // IconName
+    icon: z.string().optional(), 
     color: z.string().optional(),
-    dashboardComponent: z.string().optional(), // e.g., 'DeviceCard'
+    dashboardComponent: z.string().optional(),
   }).optional(),
 });
 
+// <--- THIS WAS MISSING
 export type EntityDefinition = z.infer<typeof EntitySchema>;
 
 
 // ------------------------------------------------------------------
-// 3. App Specification (The "Master Plan")
-// This is the JSON structure the App Builder will generate.
+// 3. App Specification (The Root Object)
 // ------------------------------------------------------------------
 export const AppSpecificationSchema = z.object({
   meta: z.object({
@@ -72,15 +71,13 @@ export const AppSpecificationSchema = z.object({
     createdAt: z.string().optional(),
   }),
   
-  // The Data Layer
   domain: z.object({
     signals: z.array(SignalSchema),
     entities: z.array(EntitySchema),
   }),
 
-  // Global Config
   config: z.object({
-    theme: z.enum(['light', 'dark', 'system']).default('system'),
+    theme: z.enum(['light', 'dark', 'system', 'corporate', 'midnight', 'blueprint']).default('system'),
     mockMode: z.boolean().default(true), 
   }),
 });

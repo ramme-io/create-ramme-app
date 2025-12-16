@@ -1,77 +1,47 @@
 # Ramme App Starter
 
-[![NPM Version](https://img.shields.io/npm/v/@ramme-io/create-app.svg)](https://www.npmjs.com/package/@ramme-io/create-app) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Welcome to your new **Ramme** application!
+This project was scaffolded using `create-ramme-app`.
 
-**A quick start for prototypes.**
+## 🚦 Getting Started
 
-This repository is the scaffolding tool for the Ramme collection. It spins up a standard frontend environment, with the **Ramme UI** component library included.
-
-Designed for quick builds, this starter kit standardizes configurations so you can move from concept to interactive prototype in seconds.
-
----
-
-## Quick Start
-
-To spin up a new project, run the initialization command in your terminal. This will generate a new folder with all resources linked and configured.
-
-*(Replace `my-new-project` with your desired folder name).*
-
+**Install dependencies:**
 ```bash
-npm create @ramme-io/app@latest my-new-project
-```
-
-This single command will:
-1.  **Scaffold** a high-performance Vite project structure.
-2.  **Install** React 19, TypeScript, and Tailwind CSS.
-3.  **Configure** the `@ramme-io/ui` component library and design tokens.
-4.  **Optimize** limited configuration for customization.
-
----
-
-## Getting Started
-
-Once the scaffolding is complete, initialize your local environment:
-
-**1. Enter the project directory**
-```bash
-cd my-new-project
-```
-
-**2. Install dependencies**
-```bash
+npm install
+# or
 pnpm install
-# or npm install
+# or
+yarn
 ```
 
-**3. Start the dev server**
+**Start the development server:**
 ```bash
-pnpm run dev
+npm run dev
 ```
 
-Your prototype is now running locally at `http://localhost:5173`.
+**Open your browser:**
+Visit `http://localhost:5173` to see your app.
 
----
+## 🏗️ Project Structure
 
-## The Tech Stack
+**`src/config/app.manifest.ts`**: The "Brain" of your app. Define your app's title, description, and high-level settings here.
+**`src/config/sitemap.ts`**: The "Skeleton." Define your pages and navigation structure here.
+**`src/core/component-registry.tsx`**: Maps JSON component names (from the builder) to actual React components.
+**`src/pages`**: Your actual page components.
+**`src/data`**: Mock data generators and seed files.
 
-This starter kit is an opinionated selection of the best open-source tools available:
+## 🎨 Customization
 
-* **Vite:** Next-generation tooling for instant server start and lightning-fast HMR (Hot Module Replacement).
-* **React:** The standard library for building composable user interfaces.
-* **TypeScript:** Statically typed JavaScript for scalable, robust application logic.
-* **Tailwind CSS:** A utility-first styling engine configured with Ramme design tokens.
-* **@ramme-io/ui:** A pre-installed suite of accessible, unstyled primitives based on Radix UI.
+### changing the Theme
+Go to `src/index.css` or `tailwind.config.js` to update your brand colors.
 
----
+### Adding New Pages
+1.  Create a new component in `src/pages`.
+2.  Register it in your `sitemap.ts` (or the relevant template sitemap).
+3.  The `RouteGenerator` will automatically handle the routing!
 
-## Project Links
+## 📚 Learn More
 
-* **`@ramme-io/ui`**: The core library of visual primitives.
-* **`@ramme-io/create-app`** (This Repository): The quick start kit.
-
----
-
-## License
-
-Copyright © 2025 Excesspool Limited Liability Company.
-This project is licensed under the [MIT License](LICENSE).
+- [Ramme UI Documentation](https://ramme.io/docs)
+- [Vite Documentation](https://vitejs.dev/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/)
