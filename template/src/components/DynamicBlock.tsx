@@ -3,12 +3,11 @@ import { getComponent } from '../core/component-registry';
 import { useSignal } from '../hooks/useSignal';
 import { getMockData } from '../data/mockData'; 
 
-// 1. THE TRANSLATOR: Maps Data Status ('fresh') to UI Status ('online')
 const mapSignalStatus = (status: string): string => {
   switch (status) {
-    case 'fresh': return 'online';       // Active/Good
-    case 'stale': return 'warning';      // Old data
-    case 'disconnected': return 'offline'; 
+    case 'fresh': return 'online';
+    case 'stale': return 'warning';
+    case 'disconnected': return 'offline';
     case 'error': return 'error';        
     default: return 'offline';
   }
@@ -24,35 +23,29 @@ interface DynamicBlockProps {
 
 export const DynamicBlock: React.FC<DynamicBlockProps> = ({ block }) => {
   const Component = getComponent(block.type);
-  
   const { signalId, dataId, ...staticProps } = block.props;
 
-  // 2. Resolve Data (Crucial Step)
+  // 1. Resolve Data
   const resolvedData = dataId ? getMockData(dataId) : staticProps.data;
 
-  // 3. Signal Wiring (Hooks must run unconditionally)
-  // We pass an empty string if undefined, the hook handles the rest.
+  // 2. Signal Wiring
   const signalState = useSignal(signalId || '');
 
-  // 4. Merge Props
-  // We explicitly type this as Record<string, any> so we can inject new props without TS errors
+  // 3. Merge Props
   const dynamicProps: Record<string, any> = { 
     ...staticProps,
+    // FIX: Pass data as BOTH 'data' (Charts) and 'rowData' (Tables)
     data: resolvedData || [], 
+    rowData: resolvedData || [],
   };
 
-  // 5. Inject Signal Data (If valid)
+  // 4. Inject Signal Data
   if (signalId && signalState) {
-    // Inject the value (formatted with unit)
     dynamicProps.value = `${signalState.value}${signalState.unit || ''}`;
-    
-    // Inject the translated status
     if (signalState.status) {
       dynamicProps.status = mapSignalStatus(signalState.status);
-      
-      // Optional: Auto-map 'variant' for components like Badge that use it
       if (signalState.status === 'error') {
-        dynamicProps.variant = 'destructive'; // UI terminology
+        dynamicProps.variant = 'destructive';
       }
     }
   }
