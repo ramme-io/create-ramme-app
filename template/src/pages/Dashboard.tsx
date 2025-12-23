@@ -1,105 +1,58 @@
 import React from 'react';
-import { PageHeader, ToggleSwitch, Button, Icon } from '@ramme-io/ui';
-
-// --- IMPORTS ---
-import { getComponent } from '../core/component-registry';
-import { appManifest } from '../config/app.manifest'; 
-import { useGeneratedSignals } from '../generated/hooks';
-import type { EntityDefinition } from '../types/schema';
-import { useAction } from '../hooks/useAction';
-
-// --- DEV TOOLS (Restored) ---
-import { useDevTools } from '../hooks/useDevTools';
-import { GhostOverlay } from '../components/dev/GhostOverlay';
+import { useLocation } from 'react-router-dom';
+import { PageHeader, Alert } from '@ramme-io/ui';
+import { appManifest } from '../config/app.manifest';
+import { DynamicBlock } from '../components/DynamicBlock';
 
 const Dashboard: React.FC = () => {
-  // 1. Initialize State Machine
-  const signals = useGeneratedSignals();
-  const { meta, domain } = appManifest;
+  const location = useLocation();
   
-  // 2. Initialize DevTools
-  const { isGhostMode, toggleGhostMode } = useDevTools();
-  const { sendAction } = useAction();
+  // 1. Determine current slug from URL
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  // If path is root or /dashboard, slug is 'dashboard', else take the last part
+  const currentSlug = pathParts.length > 1 ? pathParts[pathParts.length - 1] : 'dashboard';
+
+  // 2. Find the matching Page Definition
+  const pageDef = appManifest.pages?.find(p => p.slug === currentSlug) 
+    || appManifest.pages?.[0];
+
+  if (!pageDef) {
+    return (
+      <div className="p-8">
+        <Alert variant="warning" title="Page Not Found">
+          Could not find a definition for slug: <code>{currentSlug}</code>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 relative">
       <PageHeader
-        title={meta.name || "Command Center"}
-        description={meta.description || "Real-time device monitoring."}
-        actions={
-          // 3. Restore the Toggle Button
-          <Button 
-            variant={isGhostMode ? 'accent' : 'outline'} 
-            size="sm"
-            onClick={toggleGhostMode}
-            title="Toggle Ghost Mode (Ctrl+Shift+G)"
-          >
-            <Icon name={isGhostMode ? 'eye' : 'eye-off'} className="mr-2" />
-            {isGhostMode ? 'Ghost Mode: ON' : 'Dev Tools'}
-          </Button>
-        }
+        title={pageDef.title}
+        description={pageDef.description}
       />
 
-      {/* --- DYNAMIC RUNTIME ENGINE --- */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        
-        {domain.entities.map((entity: EntityDefinition) => {
-          // A. Resolve Component & Data
-          const componentType = entity.ui?.dashboardComponent || 'DeviceCard';
-          const Component = getComponent(componentType);
+      {pageDef.sections.map((section) => (
+        <div key={section.id} className="relative">
+          {section.title && (
+            <h3 className="text-lg font-semibold mb-4 text-foreground">
+              {section.title}
+            </h3>
+          )}
           
-          const primarySignalId = entity.signals[0];
-          const signal = primarySignalId ? signals[primarySignalId as keyof typeof signals] : null;
-
-          // B. Prepare Props
-          const dynamicProps: any = {
-            title: entity.name,
-            description: entity.description || `ID: ${entity.id}`,
-            icon: entity.ui?.icon || 'activity',
-            status: 'offline',
-          };
-
-          // C. Inject Signal Data
-          if (signal) {
-            dynamicProps.value = `${signal.value} ${signal.unit || ''}`;
-            dynamicProps.status = 'active';
-
-            if (componentType === 'ToggleCard') {
-              dynamicProps.children = (
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm text-muted-foreground">Active</span>
-                  <ToggleSwitch 
-                    label="Toggle"
-                    checked={(signal.value as any) === true || signal.value === 'true' || signal.value === 1}
-                    // THE UPDATE:
-                    onChange={(val) => sendAction(entity.id, val)} 
-                  />
-                </div>
-              );
-              delete dynamicProps.value; 
-            }
-          }
-
-          return (
-            // 4. Restore the GhostOverlay Wrapper
-            <GhostOverlay
-              key={entity.id}
-              isActive={isGhostMode}
-              componentId={entity.id}
-              componentType={componentType}
-              signalId={primarySignalId}
-            >
-              <Component {...dynamicProps} />
-            </GhostOverlay>
-          );
-        })}
-      </div>
-      
-      {domain.entities.length === 0 && (
-        <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400">
-          <p>No entities defined.</p>
+          <div 
+            className="grid gap-6"
+            style={{ 
+              gridTemplateColumns: `repeat(${section.layout?.columns || 3}, minmax(300px, 1fr))` 
+            }}
+          >
+            {section.blocks.map((block) => (
+              <DynamicBlock key={block.id} block={block} />
+            ))}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
 };

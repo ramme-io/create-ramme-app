@@ -1,20 +1,31 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { generateRoutes } from './core/route-generator';
+import { useEffect } from 'react'; // <-- 1. Import useEffect
 
 // --- 1. IMPORT ALL THREE TEMPLATES ---
 import DashboardLayout from './templates/dashboard/DashboardLayout';
 import { dashboardSitemap as dashboardSitemap } from './templates/dashboard/dashboard.sitemap';
 import DocsLayout from './templates/docs/DocsLayout';
 import { docsSitemap as docsSitemap } from './templates/docs/docs.sitemap';
-import SettingsLayout from './templates/settings/SettingsLayout'; // <-- NEW
-import { settingsSitemap as settingsSitemap } from './templates/settings/settings.sitemap'; // <-- NEW
+import SettingsLayout from './templates/settings/SettingsLayout';
+import { settingsSitemap as settingsSitemap } from './templates/settings/settings.sitemap';
 
 // Other Imports
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import NotFound from './pages/styleguide/NotFound';
 
+// --- 2. IMPORT THE SEEDER ---
+import { initializeDataLake } from './core/data-seeder'; 
+
 function App() {
+  
+  // ✅ 3. TRIGGER DATA SEEDING ON MOUNT
+  // This checks localStorage and injects our mock database if missing.
+  useEffect(() => {
+    initializeDataLake();
+  }, []);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -24,19 +35,15 @@ function App() {
 
         {/* Dashboard Template Routes */}
         <Route path="/dashboard/*" element={<DashboardLayout />}>
-          {' '}
-          {/* <-- Added /* */}
           {generateRoutes(dashboardSitemap)}
         </Route>
 
         {/* Docs Template Routes */}
         <Route path="/docs/*" element={<DocsLayout />}>
-          {' '}
-          {/* <-- Added /* */}
           {generateRoutes(docsSitemap)}
         </Route>
 
-        {/* --- 2. ADD THE NEW SETTINGS LAYOUT ROUTE --- */}
+        {/* Settings Layout Route */}
         <Route path="/settings/*" element={<SettingsLayout />}>
           {generateRoutes(settingsSitemap)}
         </Route>

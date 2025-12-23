@@ -1,85 +1,138 @@
 import { z } from 'zod';
 
 // ------------------------------------------------------------------
-// 1. Signal Schema
+// 1. DATA RESOURCE DEFINITIONS (SaaS Layer)
 // ------------------------------------------------------------------
+
+export const FieldSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  type: z.enum(['text', 'number', 'currency', 'date', 'boolean', 'status', 'email', 'image', 'textarea']),
+  required: z.boolean().optional(),
+  description: z.string().optional(),
+  defaultValue: z.any().optional(),
+});
+export type FieldDefinition = z.infer<typeof FieldSchema>;
+
+export const ResourceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  fields: z.array(FieldSchema),
+  defaultView: z.enum(['table', 'grid', 'list']).optional(),
+  features: z.object({
+    searchable: z.boolean().optional(),
+    creatable: z.boolean().optional(),
+    editable: z.boolean().optional(),
+    deletable: z.boolean().optional(),
+    exportable: z.boolean().optional(),
+  }).optional(),
+});
+export type ResourceDefinition = z.infer<typeof ResourceSchema>;
+
+
+// ------------------------------------------------------------------
+// 2. SIGNAL & IOT DEFINITIONS (Physical Layer)
+// ------------------------------------------------------------------
+
 export const SignalSchema = z.object({
   id: z.string().min(1, "Signal ID is required"),
   label: z.string(),
   description: z.string().optional(),
-  
-  // Classification
   kind: z.enum(['sensor', 'actuator', 'setpoint', 'metric', 'status', 'kpi']),
-  
-  // Data Source Configuration
   source: z.enum(['mock', 'mqtt', 'http', 'derived', 'local']),
   
-  // Protocol-Specific Config 
-  topic: z.string().optional(),      // For MQTT
-  endpoint: z.string().optional(),   // For HTTP
-  jsonPath: z.string().optional(),   // For parsing nested API responses
+  // Connectivity
+  topic: z.string().optional(),      
+  endpoint: z.string().optional(),   
+  jsonPath: z.string().optional(),   
   refreshRate: z.number().optional().default(1000), 
   
-  // Value Configuration
+  // Values
   defaultValue: z.any().optional(),
   unit: z.string().optional(),       
-  
-  // Validation
   min: z.number().optional(),
   max: z.number().optional(),
 });
-
 export type SignalDefinition = z.infer<typeof SignalSchema>;
 
-
-// ------------------------------------------------------------------
-// 2. Entity Schema
-// ------------------------------------------------------------------
 export const EntitySchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
-  
-  // Taxonomy
   type: z.string(), 
   category: z.string().default('logical'), 
-
-  // Linkage
   signals: z.array(z.string()), 
-  
-  // UI Hints
   ui: z.object({
     icon: z.string().optional(), 
     color: z.string().optional(),
     dashboardComponent: z.string().optional(),
   }).optional(),
 });
-
-// <--- THIS WAS MISSING
 export type EntityDefinition = z.infer<typeof EntitySchema>;
 
 
 // ------------------------------------------------------------------
-// 3. App Specification (The Root Object)
+// 3. UI LAYOUT DEFINITIONS (Presentation Layer)
 // ------------------------------------------------------------------
+
+export const BlockSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  // ✅ FIX: Explicitly define Key and Value types
+  props: z.record(z.string(), z.any()), 
+  layout: z.object({
+    colSpan: z.number().optional(),
+    rowSpan: z.number().optional(),
+  }).optional(),
+});
+
+export const PageSectionSchema = z.object({
+  id: z.string(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  layout: z.object({ 
+    columns: z.number().optional(), 
+    variant: z.enum(['grid', 'stack', 'split']).optional() 
+  }).optional(),
+  blocks: z.array(BlockSchema),
+});
+
+export const PageSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  sections: z.array(PageSectionSchema),
+});
+export type PageDefinition = z.infer<typeof PageSchema>;
+
+
+// MASTER APP SPECIFICATION
 export const AppSpecificationSchema = z.object({
   meta: z.object({
     name: z.string(),
     version: z.string(),
     description: z.string().optional(),
     author: z.string().optional(),
-    createdAt: z.string().optional(),
+    createdAt: z.string().optional(), // <--- ADD THIS LINE
   }),
+  
+  config: z.object({
+    theme: z.enum(['light', 'dark', 'system', 'corporate', 'midnight', 'blueprint']).default('system'),
+    mockMode: z.boolean().default(true),
+    brokerUrl: z.string().optional(),
+  }),
+
+  modules: z.array(z.string()).optional(),
+  resources: z.array(ResourceSchema).optional(),
   
   domain: z.object({
     signals: z.array(SignalSchema),
     entities: z.array(EntitySchema),
   }),
 
-  config: z.object({
-    theme: z.enum(['light', 'dark', 'system', 'corporate', 'midnight', 'blueprint']).default('system'),
-    mockMode: z.boolean().default(true), 
-  }),
+  pages: z.array(PageSchema).optional(),
 });
 
 export type AppSpecification = z.infer<typeof AppSpecificationSchema>;

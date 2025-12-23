@@ -1,24 +1,28 @@
 import React from 'react';
-import { PageHeader, Alert } from '@ramme-io/ui';
+import { PageHeader, Alert, Button, Icon } from '@ramme-io/ui';
 import { appManifest } from '../config/app.manifest';
-import { getComponent } from '../core/component-registry';
 // Reuse the GhostOverlay for structure visualization
 import { GhostOverlay } from '../components/dev/GhostOverlay';
-// Import the component that renders a single block (you likely have this extracted from Dashboard.tsx)
+// Import the Worker Bee
 import { DynamicBlock } from '../components/DynamicBlock';
+// Import the Hook to control the overlay
+import { useDevTools } from '../hooks/useDevTools';
 
 interface DynamicPageProps {
   pageId: string;
 }
 
-const DynamicPage: React.FC<DynamicPageProps> = ({ pageId }) => {
-  // 1. Look up the page definition in the manifest
-  const pageConfig = appManifest.pages?.find((p: { id: string; }) => p.id === pageId);
+export const DynamicPage: React.FC<DynamicPageProps> = ({ pageId }) => {
+  // 1. Initialize DevTools
+  const { isGhostMode, toggleGhostMode } = useDevTools();
+
+  // 2. Look up the page definition
+  const pageConfig = (appManifest as any).pages?.find((p: any) => p.id === pageId);
 
   if (!pageConfig) {
     return (
       <div className="p-8">
-        <Alert variant="danger" title="404: Page Definition Not Found">
+        <Alert variant="danger" title="Page Not Found">
           The manifest does not contain a page with ID: <code>{pageId}</code>.
         </Alert>
       </div>
@@ -26,33 +30,61 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ pageId }) => {
   }
 
   return (
-    <div className="space-y-8 fade-in">
+    <div className="space-y-8 fade-in p-6">
       <PageHeader 
         title={pageConfig.title} 
-        description={pageConfig.description} 
+        description={pageConfig.description}
+        actions={
+          <Button 
+            variant={isGhostMode ? 'accent' : 'outline'} 
+            size="sm"
+            onClick={toggleGhostMode}
+            title="Toggle Ghost Mode (Ctrl+Shift+G)"
+          >
+            <Icon name={isGhostMode ? 'eye' : 'eye-off'} className="mr-2" />
+            {isGhostMode ? 'Ghost Mode: ON' : 'Dev Tools'}
+          </Button>
+        }
       />
 
-      {/* Render Sections */}
-      {pageConfig.sections.map((section: { id: React.Key | null | undefined; title: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | null | undefined; layout: { columns: any; }; blocks: any[]; }) => (
+      {/* 4. Render Sections */}
+      {pageConfig.sections.map((section: any) => (
         <div key={section.id} className="space-y-4">
           {section.title && <h3 className="text-xl font-semibold">{section.title}</h3>}
           
           <div 
             className="grid gap-6"
             style={{ 
-              gridTemplateColumns: `repeat(${section.layout?.columns || 3}, minmax(300px, 1fr))` 
+              // ⚡️ IMPROVEMENT: Default to 1 column (Full Width) instead of 3.
+              // This fixes the "narrow table" issue immediately.
+              gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` 
             }}
           >
-            {section.blocks.map(block => (
-               <GhostOverlay 
-                 key={block.id} 
-                 componentId={block.id} 
-                 componentType={block.type}
-                 signalId={block.props.signalId}
-               >
-                 <DynamicBlock block={block} />
-               </GhostOverlay>
-            ))}
+            {section.blocks.map((block: any) => {
+              // ⚡️ IMPROVEMENT: Calculate Spanning
+              // Allows a block to stretch across multiple columns if needed.
+              const colSpan = block.layout?.colSpan || 1;
+              const rowSpan = block.layout?.rowSpan || 1;
+
+              return (
+                <div 
+                  key={block.id}
+                  style={{ 
+                    gridColumn: `span ${colSpan}`,
+                    gridRow: `span ${rowSpan}`
+                  }}
+                >
+                   <GhostOverlay 
+                     isActive={isGhostMode}
+                     componentId={block.id} 
+                     componentType={block.type}
+                     signalId={block.props.signalId}
+                   >
+                     <DynamicBlock block={block} />
+                   </GhostOverlay>
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

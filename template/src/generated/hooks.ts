@@ -1,61 +1,40 @@
-// ------------------------------------------------------------------
-// GENERATED ADAPTER CODE
-// Config: LIVE MODE (HTTP)
-// ------------------------------------------------------------------
-import { useEffect, useState } from 'react';
+import { useSignal } from '../hooks/useSignal';
 
-// Signal IDs defined in your Acme Corp schema
-export type SignalId = 'mrr_stripe' | 'active_users';
-
-export function useGeneratedSignals() {
-  // 1. Initialize state with default values (0)
-  const [signals, setSignals] = useState<Record<SignalId, any>>({
-    'mrr_stripe': { value: 0, unit: 'USD', status: 'stale' },
-    'active_users': { value: 0, unit: '', status: 'stale' }
+export const useGeneratedSignals = () => {
+  
+  // 🟢 REAL: Connected to public MQTT test broker
+  const living_room_ac = useSignal('living_room_ac', {
+    initialValue: 72,
+    min: 60,
+    max: 90,
+    unit: '°F',
+    topic: 'ramme/test/temp' // <--- The magic link
   });
 
-  // 2. HTTP Polling Implementation
-  useEffect(() => {
-    // Helper to extract nested data (e.g. "data.finance.mrr")
-    const getNestedValue = (obj: any, path: string) => {
-      return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-    };
+  // 🟠 MOCK: Simulation Mode
+  const living_room_hum = useSignal('living_room_hum', {
+    initialValue: 45,
+    min: 40,
+    max: 60,
+    unit: '%'
+  });
 
-    const pollEndpoints = async () => {
-      console.log('🔄 Polling /api_mock.json...');
-      
-      try {
-        const response = await fetch('/api_mock.json');
-        if (response.ok) {
-          const json = await response.json();
-          
-          // Update Signals based on the paths defined in manifest
-          setSignals(prev => ({
-            ...prev,
-            'mrr_stripe': { 
-              value: getNestedValue(json, 'data.finance.mrr'), 
-              unit: 'USD', 
-              status: 'fresh' 
-            },
-            'active_users': { 
-              value: getNestedValue(json, 'data.users.total'), 
-              unit: '', 
-              status: 'fresh' 
-            }
-          }));
-        }
-      } catch (err) {
-        console.error("API Polling Error:", err);
-      }
-    };
+  const server_01 = useSignal('server_01', {
+    initialValue: 42,
+    min: 10,
+    max: 95,
+    unit: '%'
+  });
 
-    // Initial Fetch
-    pollEndpoints();
-    
-    // Poll every 5s
-    const interval = setInterval(pollEndpoints, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const front_door_lock = useSignal('front_door_lock', {
+    initialValue: 'LOCKED',
+    unit: ''
+  });
 
-  return signals;
-}
+  return {
+    living_room_ac,
+    living_room_hum,
+    server_01,
+    front_door_lock,
+  };
+};

@@ -18,6 +18,7 @@ import { SitemapProvider } from '../../contexts/SitemapContext';
 import PageTitleUpdater from '../../components/PageTitleUpdater';
 import AppHeader from '../../components/AppHeader';
 import { AIChatWidget } from '../../components/AIChatWidget'; // <-- NEW: Import Widget
+import { useWorkflowEngine } from '../../hooks/useWorkflowEngine';
 
 // NavLink wrapper - Correct
 const SidebarNavLink = React.forwardRef<HTMLAnchorElement, any>(
@@ -87,6 +88,7 @@ const AppSidebarContent: React.FC = () => {
 const DashboardLayout: React.FC = () => {
   // 1. STATE: Track if the chat window is open
   const [isChatOpen, setIsChatOpen] = useState(false);
+  useWorkflowEngine();
 
   return (
     <SitemapProvider value={dashboardSitemap}>

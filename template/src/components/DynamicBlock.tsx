@@ -1,52 +1,58 @@
 import React from 'react';
 import { getComponent } from '../core/component-registry';
-import { useSignal } from '../hooks/useSignal';
-import { getMockData } from '../data/mockData'; 
+// @ts-ignore
+import { useGeneratedSignals } from '../generated/hooks';
+import { getMockData } from '../data/mockData';
 
 const mapSignalStatus = (status: string): string => {
   switch (status) {
     case 'fresh': return 'online';
     case 'stale': return 'warning';
     case 'disconnected': return 'offline';
-    case 'error': return 'error';        
+    case 'error': return 'error';
     default: return 'offline';
   }
 };
 
-interface DynamicBlockProps {
-  block: {
-    id: string;
-    type: string;
-    props: Record<string, any>;
-  };
-}
-
-export const DynamicBlock: React.FC<DynamicBlockProps> = ({ block }) => {
+export const DynamicBlock: React.FC<any> = ({ block }) => {
   const Component = getComponent(block.type);
+  const signals = useGeneratedSignals();
+
   const { signalId, dataId, ...staticProps } = block.props;
-
-  // 1. Resolve Data
-  const resolvedData = dataId ? getMockData(dataId) : staticProps.data;
-
-  // 2. Signal Wiring
-  const signalState = useSignal(signalId || '');
-
-  // 3. Merge Props
+  
   const dynamicProps: Record<string, any> = { 
     ...staticProps,
-    // FIX: Pass data as BOTH 'data' (Charts) and 'rowData' (Tables)
-    data: resolvedData || [], 
-    rowData: resolvedData || [],
+    dataId,
+    signalId 
   };
 
-  // 4. Inject Signal Data
-  if (signalId && signalState) {
-    dynamicProps.value = `${signalState.value}${signalState.unit || ''}`;
-    if (signalState.status) {
-      dynamicProps.status = mapSignalStatus(signalState.status);
-      if (signalState.status === 'error') {
-        dynamicProps.variant = 'destructive';
-      }
+  // --- DATA INJECTION ---
+  if (dataId) {
+    const resolvedData = getMockData(dataId);
+    dynamicProps.data = resolvedData || [];
+    dynamicProps.rowData = resolvedData || [];
+  }
+
+  // --- SIGNAL INJECTION ---
+  if (signalId && signals && signalId in signals) {
+    // @ts-ignore
+    const signalState = signals[signalId];
+
+    if (signalState) {
+      // ✅ FIX: Handle both Raw Values (Legacy) and Signal Objects (New)
+      // If it's an object with a 'value' property, use that. Otherwise use it directly.
+      const rawValue = (typeof signalState === 'object' && 'value' in signalState) 
+        ? signalState.value 
+        : signalState;
+
+      const status = (typeof signalState === 'object' && 'status' in signalState)
+        ? signalState.status
+        : 'fresh'; // Default for raw values
+
+      dynamicProps.value = typeof rawValue === 'number' ? rawValue : String(rawValue);
+      dynamicProps.status = mapSignalStatus(status);
+    } else {
+      dynamicProps.status = mapSignalStatus('disconnected');
     }
   }
 

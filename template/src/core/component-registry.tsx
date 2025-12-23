@@ -5,65 +5,45 @@ import {
   BarChart,
   LineChart,
   PieChart,
-  DataTable,
+  DataTable, 
   Card,
   Alert,
   EmptyState,
+  ToggleSwitch
 } from '@ramme-io/ui';
 
-/**
- * The Registry maps the "string" name of a component (from the JSON manifest)
- * to the actual React component implementation.
- */
+// ✅ IMPORT YOUR CUSTOM COMPONENT
+import { SmartTable } from '../blocks/SmartTable';
+
 export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
-  // --- Core Components ---
+  // IoT Primitives
   DeviceCard,
+  
+  // Data Display
   StatCard,
   BarChart,
   LineChart,
   PieChart,
-  DataTable,
+  
+  // Tables
+  DataTable, // The raw grid
+  
+  // ✅ FIX: Map "SmartTable" to the actual SmartTable component
+  // (Previously it was aliased to DataTable, which broke the UI)
+  SmartTable: SmartTable, 
+  
+  // Layout & Feedback
   Card,
   Alert,
   EmptyState,
-
-  // --- 🛡️ ROBUSTNESS ALIASES ---
-  // These mappings allow the manifest to use lowercase or alternate names
-  // without crashing the application.
   
-  // Tables
-  'table': DataTable,       // Fixes your specific error
-  'Table': DataTable,
-  'grid': DataTable,
-
-  // Charts
-  'chart': BarChart,        // Default generic chart to BarChart
-  'line': LineChart,
-  'bar': BarChart,
-  'pie': PieChart,
-
-  // IoT Fallbacks
-  'DataCard': DeviceCard,
-  'GaugeCard': DeviceCard,
-  'ToggleCard': DeviceCard,
-  'SliderCard': DeviceCard,
-  'SparklineCard': DeviceCard,
+  // Forms/Controls
+  ToggleSwitch
 };
 
-/**
- * Helper to safely resolve a component.
- * Returns a fallback if the component name is unknown.
- */
 export const getComponent = (name: string) => {
-  // 1. Try direct lookup
-  let Component = COMPONENT_REGISTRY[name];
-
-  // 2. If not found, try PascalCase (e.g. "deviceCard" -> "DeviceCard")
-  if (!Component) {
-    const pascalName = name.charAt(0).toUpperCase() + name.slice(1);
-    Component = COMPONENT_REGISTRY[pascalName];
-  }
-
+  const Component = COMPONENT_REGISTRY[name];
+  
   if (!Component) {
     console.warn(`[Registry] Unknown component type: "${name}"`);
     return () => (

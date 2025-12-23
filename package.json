@@ -14,10 +14,11 @@
     "build": "cd template && tsc && vite build",
     "preview": "cd template && vite preview",
     "pack-tarball": "npm pack",
-    "bundle:ai": "repomix --ignore '**/*.lock,**/dist/**,**/template/dist/**,**/template/node_modules/**' --output 'ramme-starter-context.txt'"
+    "bundle:ai": "repomix --ignore '**/*.lock,**/dist/**,**/template/dist/**,**/template/node_modules/**' --output 'ramme-starter-context.txt'",
+    "zip:builder": "cd template && zip -r ../base.zip . -x \"node_modules/*\" \"dist/*\" \".DS_Store\" && mv ../base.zip ../../ramme-app-builder/public/base.zip && echo '✅ base.zip updated in Builder!'"
   },
   "dependencies": {
-    "@ramme-io/ui": "^1.1.3",
+    "@ramme-io/ui": "^1.1.5",
     "ag-grid-community": "^34.1.2",
     "ag-grid-enterprise": "^34.1.2",
     "ag-grid-react": "^34.1.2",
