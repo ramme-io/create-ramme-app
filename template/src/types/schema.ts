@@ -70,6 +70,39 @@ export const EntitySchema = z.object({
 });
 export type EntityDefinition = z.infer<typeof EntitySchema>;
 
+// ------------------------------------------------------------------
+// ✅ NEW: LOGIC & WORKFLOW DEFINITIONS
+// ------------------------------------------------------------------
+
+export const TriggerSchema = z.object({
+  id: z.string(),
+  type: z.enum(['signal_change', 'manual_action', 'schedule', 'webhook']),
+  config: z.record(z.string(), z.any()), 
+});
+
+export const ActionSchema = z.object({
+  id: z.string(),
+  type: z.enum([
+    'update_resource', 
+    'send_notification', 
+    'mqtt_publish', 
+    'api_call', 
+    'navigate', 
+    'agent_task'
+  ]),
+  config: z.record(z.string(), z.any()),
+});
+
+export const WorkflowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  active: z.boolean().default(true),
+  trigger: TriggerSchema,
+  actions: z.array(ActionSchema),
+});
+export type WorkflowDefinition = z.infer<typeof WorkflowSchema>;
+export type ActionDefinition = z.infer<typeof ActionSchema>;
+
 
 // ------------------------------------------------------------------
 // 3. UI LAYOUT DEFINITIONS (Presentation Layer)
@@ -78,7 +111,6 @@ export type EntityDefinition = z.infer<typeof EntitySchema>;
 export const BlockSchema = z.object({
   id: z.string(),
   type: z.string(),
-  // ✅ FIX: Explicitly define Key and Value types
   props: z.record(z.string(), z.any()), 
   layout: z.object({
     colSpan: z.number().optional(),
@@ -115,7 +147,7 @@ export const AppSpecificationSchema = z.object({
     version: z.string(),
     description: z.string().optional(),
     author: z.string().optional(),
-    createdAt: z.string().optional(), // <--- ADD THIS LINE
+    createdAt: z.string().optional(),
   }),
   
   config: z.object({
@@ -130,6 +162,8 @@ export const AppSpecificationSchema = z.object({
   domain: z.object({
     signals: z.array(SignalSchema),
     entities: z.array(EntitySchema),
+    // ✅ ADDED WORKFLOWS HERE
+    workflows: z.array(WorkflowSchema).optional(),
   }),
 
   pages: z.array(PageSchema).optional(),

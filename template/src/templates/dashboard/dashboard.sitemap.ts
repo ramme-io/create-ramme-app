@@ -2,8 +2,18 @@ import { type SitemapEntry } from '../../core/sitemap-entry';
 import { appManifest } from '../../config/app.manifest';
 import Dashboard from '../../pages/Dashboard';
 import AiChat from '../../pages/AiChat';
+import Welcome from '../../pages/Welcome'; // ✅ Import the new page
 
-export const dashboardSitemap: SitemapEntry[] = [];
+export const dashboardSitemap: SitemapEntry[] = [
+  // ✅ 1. The New Landing Page
+  {
+    id: 'welcome',
+    path: 'welcome',
+    title: 'Start Here',
+    icon: 'rocket',
+    component: Welcome,
+  },
+];
 
 // A. Dynamic Pages from Manifest
 if (appManifest.pages) {
@@ -13,10 +23,11 @@ if (appManifest.pages) {
     dashboardSitemap.push({
       id: page.id,
       title: page.title,
-      // Map root to Dashboard, others to their slug
-      path: isDashboard ? '' : page.slug,
+      // ✅ FIX: Map the main dashboard to 'app' instead of root ''
+      // This prevents conflict with the layout root
+      path: isDashboard ? 'app' : page.slug,
       icon: isDashboard ? 'layout-dashboard' : 'file-text',
-      component: Dashboard, // Map everything to the Universal Renderer
+      component: Dashboard,
     });
   });
 }

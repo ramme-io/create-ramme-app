@@ -1,183 +1,216 @@
-import React, { useState, useMemo } from 'react';
-import { DataTable, Button, Icon, Card, useToast, type ColDef } from '@ramme-io/ui';
+import React, { useState, useMemo, useCallback } from 'react';
+import { 
+  DataTable, 
+  Button, 
+  Icon, 
+  Card, 
+  useToast, 
+  SearchInput,
+  type ColDef,
+  type GridApi 
+} from '@ramme-io/ui';
 import { getResourceMeta, getMockData } from '../data/mockData';
 import { AutoForm } from '../components/AutoForm';
-// ✅ Import types that now definitely exist
-import { useDataQuery, type FilterOption, type SortOption } from '../hooks/useDataQuery';
 import { useCrudLocalStorage } from '../hooks/useCrudLocalStorage';
 
 interface SmartTableProps {
   dataId: string;
   title?: string;
   initialFilter?: Record<string, any>; 
-  initialSort?: SortOption;
 }
 
 export const SmartTable: React.FC<SmartTableProps> = ({ 
   dataId, 
   title,
-  initialFilter, 
-  initialSort 
+  initialFilter
 }) => {
   const { addToast } = useToast();
   
-  // 1. STATE
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10); // Kept as state in case we add a selector later
-  
-  // 2. METADATA
+  // 1. DATA KERNEL
   const meta = getResourceMeta(dataId);
-
-  // 3. STORAGE LAYER
-  // Seed data if local storage is empty
   const seedData = useMemo(() => getMockData(dataId) || [], [dataId]);
   
+  // We use the CRUD hook to persist changes to localStorage
   const { 
-    data: rawData, 
+    data: rowData, 
     createItem, 
-    updateItem 
+    updateItem, 
+    deleteItem 
   } = useCrudLocalStorage<any>(`ramme_db_${dataId}`, seedData);
 
-  // 4. LOGIC LAYER
-  const activeFilters = useMemo<FilterOption[]>(() => {
-    if (!initialFilter) return [];
-    return Object.entries(initialFilter).map(([key, value]) => ({
-      field: key,
-      operator: 'equals',
-      value
-    }));
-  }, [initialFilter]);
-
-  const { data: processedRows, total, pageCount } = useDataQuery(rawData, {
-    filters: activeFilters,
-    sort: initialSort, // Using the prop directly for now (Fixes 'setSort' unused)
-    page,
-    pageSize
-  });
-
-  // 5. UI STATE
+  // 2. UI STATE
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<any>(null);
+  const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const [selectedRows, setSelectedRows] = useState<any[]>([]);
+  const [quickFilterText, setQuickFilterText] = useState('');
 
-  // 6. COLUMNS
-  const columns = useMemo(() => {
-    if (meta?.fields) {
-      const cols: ColDef[] = meta.fields.map((f: any) => {
-        const colDef: ColDef = {
-          field: f.key,
-          headerName: f.label,
-          filter: true,
-          sortable: true,
-          flex: 1,
-        };
+  // 3. COLUMN DEFINITIONS
+  const columns = useMemo<ColDef[]>(() => {
+    if (!meta?.fields) return [];
 
-        if (f.key.endsWith('Id')) {
-           const collectionName = f.key.replace('Id', 's'); 
-           const relatedData = getMockData(collectionName);
-           if (relatedData) {
-             colDef.valueFormatter = (params) => {
-               const match = relatedData.find((item: any) => item.id === params.value);
-               return match ? (match.name || match.title || params.value) : params.value;
-             };
-           }
-        }
+    const generatedCols: ColDef[] = meta.fields.map((f: any) => {
+      const col: ColDef = {
+        field: f.key,
+        headerName: f.label,
+        filter: true,
+        sortable: true,
+        resizable: true,
+        flex: 1,
+      };
 
-        if (f.type === 'currency') colDef.valueFormatter = (p: any) => p.value ? `$${p.value}` : '';
-        if (f.type === 'date') colDef.valueFormatter = (p: any) => p.value ? new Date(p.value).toLocaleDateString() : '';
-        
-        if (f.type === 'status') {
-          colDef.cellRenderer = (p: any) => (
-            <span className={`px-2 py-1 rounded-full text-xs font-medium border
-              ${['active', 'paid'].includes(p.value?.toLowerCase()) ? 'bg-green-100 text-green-800 border-green-200' : 
-                ['pending'].includes(p.value?.toLowerCase()) ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+      // Smart Formatting based on type
+      if (f.type === 'currency') {
+        col.valueFormatter = (p: any) => p.value ? `$${Number(p.value).toLocaleString()}` : '';
+      }
+      if (f.type === 'date') {
+        col.valueFormatter = (p: any) => p.value ? new Date(p.value).toLocaleDateString() : '';
+      }
+      if (f.type === 'status') {
+        col.cellRenderer = (p: any) => {
+          const statusColors: any = {
+            active: 'bg-green-100 text-green-800',
+            paid: 'bg-green-100 text-green-800',
+            pending: 'bg-yellow-100 text-yellow-800',
+            inactive: 'bg-slate-100 text-slate-600',
+            overdue: 'bg-red-100 text-red-800'
+          };
+          const colorClass = statusColors[String(p.value).toLowerCase()] || 'bg-slate-100 text-slate-800';
+          return (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
               {p.value}
             </span>
           );
-        }
-        return colDef;
-      });
+        };
+      }
+      return col;
+    });
 
-      cols.push({
-        headerName: "Actions",
-        field: "id",
-        width: 100,
-        pinned: 'right',
-        cellRenderer: (params: any) => (
-          <Button variant="ghost" size="sm" onClick={() => { setCurrentRecord(params.data); setIsEditOpen(true); }}>
-            <Icon name="edit-2" className="w-4 h-4 text-slate-500" />
+    // Add Checkbox Selection to the first column
+    if (generatedCols.length > 0) {
+      generatedCols[0].headerCheckboxSelection = true;
+      generatedCols[0].checkboxSelection = true;
+      generatedCols[0].minWidth = 180;
+    }
+
+    // Add Actions Column
+    generatedCols.push({
+      headerName: "Actions",
+      field: "id",
+      width: 100,
+      pinned: 'right',
+      cellRenderer: (params: any) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setCurrentRecord(params.data); setIsEditOpen(true); }}>
+            <Icon name="edit-2" size={14} className="text-slate-500" />
           </Button>
-        )
-      });
-      return cols;
+        </div>
+      )
+    });
+
+    return generatedCols;
+  }, [meta]);
+
+  // 4. HANDLERS
+  const onGridReady = useCallback((params: any) => {
+    setGridApi(params.api);
+  }, []);
+
+  const onSelectionChanged = useCallback(() => {
+    if (gridApi) {
+      setSelectedRows(gridApi.getSelectedRows());
     }
-    
-    if (processedRows.length > 0) {
-      return Object.keys(processedRows[0]).map(k => ({ field: k, headerName: k.toUpperCase(), flex: 1 }));
+  }, [gridApi]);
+
+  const handleBulkDelete = () => {
+    if (confirm(`Delete ${selectedRows.length} items?`)) {
+      selectedRows.forEach(row => deleteItem(row.id));
+      setSelectedRows([]);
+      addToast(`${selectedRows.length} items deleted`, 'success');
     }
-    return [];
-  }, [meta, processedRows]);
+  };
 
   const handleSave = (record: any) => {
     if (record.id && currentRecord?.id) {
-        updateItem(record);
-        addToast('Record updated successfully', 'success');
+      updateItem(record);
+      addToast('Item updated', 'success');
     } else {
-        const { id, ...newItem } = record;
-        createItem(newItem);
-        addToast('New record created', 'success');
+      const { id, ...newItem } = record;
+      createItem(newItem);
+      addToast('Item created', 'success');
     }
     setIsEditOpen(false);
   };
 
+  // --- RENDER ---
   return (
-    <Card className="p-0 overflow-hidden border border-border flex flex-col h-full min-h-[500px]"> 
-      <div className="p-4 border-b border-border flex justify-between items-center bg-muted/20">
+    <Card className="flex flex-col h-[600px] border border-border shadow-sm overflow-hidden bg-card">
+      
+      {/* HEADER TOOLBAR */}
+      <div className="p-4 border-b border-border flex justify-between items-center gap-4 bg-muted/5">
+        
+        {/* Left: Title or Bulk Actions */}
+        {selectedRows.length > 0 ? (
+          <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-200">
+            <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-md">
+              {selectedRows.length} Selected
+            </span>
+            <Button size="sm" variant="danger" onClick={handleBulkDelete} iconLeft="trash-2">
+              Delete Selected
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-primary/10 rounded-md text-primary">
+              <Icon name="table" size={18} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground leading-tight">
+                {title || meta?.name || dataId}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {rowData.length} records found
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Right: Actions & Filter */}
         <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-foreground">
-            {title || meta?.name || dataId}
-          </h3>
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-            {total} records
-          </span>
+          <div className="w-64">
+            <SearchInput 
+              placeholder="Quick search..." 
+              value={quickFilterText}
+              onChange={(e) => {
+                setQuickFilterText(e.target.value);
+                gridApi?.setQuickFilter(e.target.value);
+              }}
+            />
+          </div>
+          <div className="h-6 w-px bg-border mx-1" />
+          <Button size="sm" variant="primary" iconLeft="plus" onClick={() => { setCurrentRecord({}); setIsEditOpen(true); }}>
+            Add New
+          </Button>
         </div>
-        <Button size="sm" variant="outline" onClick={() => { setCurrentRecord({}); setIsEditOpen(true); }}>
-          <Icon name="plus" className="mr-2 w-4 h-4" /> Add Item
-        </Button>
       </div>
 
+      {/* AG GRID */}
       <div className="flex-1 w-full bg-card relative">
         <DataTable 
-          rowData={processedRows} 
+          rowData={rowData} 
           columnDefs={columns} 
-          pagination={false} // We handle pagination logic manually below
+          onGridReady={onGridReady}
+          onSelectionChanged={onSelectionChanged}
+          rowSelection="multiple"
+          pagination={true}
+          paginationPageSize={10}
+          headerHeight={48}
+          rowHeight={48}
+          enableCellTextSelection={true}
         />
-        
-        {/* Pagination Controls */}
-        <div className="p-2 border-t border-border flex justify-between items-center text-sm">
-           <span className="text-muted-foreground">
-             Page {page} of {pageCount || 1}
-           </span>
-           <div className="flex gap-2">
-             <Button 
-               variant="ghost" 
-               size="sm" 
-               disabled={page === 1} 
-               onClick={() => setPage(p => Math.max(1, p - 1))}
-             >
-               Prev
-             </Button>
-             <Button 
-               variant="ghost" 
-               size="sm" 
-               disabled={page >= pageCount} 
-               onClick={() => setPage(p => p + 1)}
-             >
-               Next
-             </Button>
-           </div>
-        </div>
       </div>
 
+      {/* EDIT DRAWER */}
       <AutoForm
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}

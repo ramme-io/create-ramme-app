@@ -143,6 +143,7 @@ template/
       DynamicPage.tsx
       GenericContentPage.tsx
       LoginPage.tsx
+      Welcome.tsx
     templates/
       dashboard/
         dashboard.sitemap.ts
@@ -167,6 +168,7 @@ template/
   eslint.config.js
   gitignore
   index.html
+  package.json
   pkg.json
   postcss.config.cjs
   README.md
@@ -187,463 +189,169 @@ README.md
 <files>
 This section contains the contents of the repository's files.
 
-<file path="template/src/blocks/SmartTable.tsx">
-import React, { useState, useMemo } from 'react';
-import { DataTable, Button, Icon, Card, useToast, type ColDef } from '@ramme-io/ui';
-import { getResourceMeta, getMockData } from '../data/mockData';
-import { AutoForm } from '../components/AutoForm';
-// ✅ Import types that now definitely exist
-import { useDataQuery, type FilterOption, type SortOption } from '../hooks/useDataQuery';
-import { useCrudLocalStorage } from '../hooks/useCrudLocalStorage';
+<file path="template/src/pages/Welcome.tsx">
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  PageHeader, 
+  Card, 
+  Button, 
+  Icon, 
+  Badge,
+  SectionHeader 
+} from '@ramme-io/ui';
 
-interface SmartTableProps {
-  dataId: string;
-  title?: string;
-  initialFilter?: Record<string, any>; 
-  initialSort?: SortOption;
-}
-
-export const SmartTable: React.FC<SmartTableProps> = ({ 
-  dataId, 
-  title,
-  initialFilter, 
-  initialSort 
-}) => {
-  const { addToast } = useToast();
-  
-  // 1. STATE
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10); // Kept as state in case we add a selector later
-  
-  // 2. METADATA
-  const meta = getResourceMeta(dataId);
-
-  // 3. STORAGE LAYER
-  // Seed data if local storage is empty
-  const seedData = useMemo(() => getMockData(dataId) || [], [dataId]);
-  
-  const { 
-    data: rawData, 
-    createItem, 
-    updateItem 
-  } = useCrudLocalStorage<any>(`ramme_db_${dataId}`, seedData);
-
-  // 4. LOGIC LAYER
-  const activeFilters = useMemo<FilterOption[]>(() => {
-    if (!initialFilter) return [];
-    return Object.entries(initialFilter).map(([key, value]) => ({
-      field: key,
-      operator: 'equals',
-      value
-    }));
-  }, [initialFilter]);
-
-  const { data: processedRows, total, pageCount } = useDataQuery(rawData, {
-    filters: activeFilters,
-    sort: initialSort, // Using the prop directly for now (Fixes 'setSort' unused)
-    page,
-    pageSize
-  });
-
-  // 5. UI STATE
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [currentRecord, setCurrentRecord] = useState<any>(null);
-
-  // 6. COLUMNS
-  const columns = useMemo(() => {
-    if (meta?.fields) {
-      const cols: ColDef[] = meta.fields.map((f: any) => {
-        const colDef: ColDef = {
-          field: f.key,
-          headerName: f.label,
-          filter: true,
-          sortable: true,
-          flex: 1,
-        };
-
-        if (f.key.endsWith('Id')) {
-           const collectionName = f.key.replace('Id', 's'); 
-           const relatedData = getMockData(collectionName);
-           if (relatedData) {
-             colDef.valueFormatter = (params) => {
-               const match = relatedData.find((item: any) => item.id === params.value);
-               return match ? (match.name || match.title || params.value) : params.value;
-             };
-           }
-        }
-
-        if (f.type === 'currency') colDef.valueFormatter = (p: any) => p.value ? `$${p.value}` : '';
-        if (f.type === 'date') colDef.valueFormatter = (p: any) => p.value ? new Date(p.value).toLocaleDateString() : '';
-        
-        if (f.type === 'status') {
-          colDef.cellRenderer = (p: any) => (
-            <span className={`px-2 py-1 rounded-full text-xs font-medium border
-              ${['active', 'paid'].includes(p.value?.toLowerCase()) ? 'bg-green-100 text-green-800 border-green-200' : 
-                ['pending'].includes(p.value?.toLowerCase()) ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 'bg-slate-100 text-slate-800 border-slate-200'}`}>
-              {p.value}
-            </span>
-          );
-        }
-        return colDef;
-      });
-
-      cols.push({
-        headerName: "Actions",
-        field: "id",
-        width: 100,
-        pinned: 'right',
-        cellRenderer: (params: any) => (
-          <Button variant="ghost" size="sm" onClick={() => { setCurrentRecord(params.data); setIsEditOpen(true); }}>
-            <Icon name="edit-2" className="w-4 h-4 text-slate-500" />
-          </Button>
-        )
-      });
-      return cols;
-    }
-    
-    if (processedRows.length > 0) {
-      return Object.keys(processedRows[0]).map(k => ({ field: k, headerName: k.toUpperCase(), flex: 1 }));
-    }
-    return [];
-  }, [meta, processedRows]);
-
-  const handleSave = (record: any) => {
-    if (record.id && currentRecord?.id) {
-        updateItem(record);
-        addToast('Record updated successfully', 'success');
-    } else {
-        const { id, ...newItem } = record;
-        createItem(newItem);
-        addToast('New record created', 'success');
-    }
-    setIsEditOpen(false);
-  };
+const Welcome: React.FC = () => {
+  const navigate = useNavigate();
 
   return (
-    <Card className="p-0 overflow-hidden border border-border flex flex-col h-full min-h-[500px]"> 
-      <div className="p-4 border-b border-border flex justify-between items-center bg-muted/20">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-foreground">
-            {title || meta?.name || dataId}
-          </h3>
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-            {total} records
-          </span>
-        </div>
-        <Button size="sm" variant="outline" onClick={() => { setCurrentRecord({}); setIsEditOpen(true); }}>
-          <Icon name="plus" className="mr-2 w-4 h-4" /> Add Item
-        </Button>
-      </div>
-
-      <div className="flex-1 w-full bg-card relative">
-        <DataTable 
-          rowData={processedRows} 
-          columnDefs={columns} 
-          pagination={false} // We handle pagination logic manually below
-        />
-        
-        {/* Pagination Controls */}
-        <div className="p-2 border-t border-border flex justify-between items-center text-sm">
-           <span className="text-muted-foreground">
-             Page {page} of {pageCount || 1}
-           </span>
-           <div className="flex gap-2">
-             <Button 
-               variant="ghost" 
-               size="sm" 
-               disabled={page === 1} 
-               onClick={() => setPage(p => Math.max(1, p - 1))}
-             >
-               Prev
-             </Button>
-             <Button 
-               variant="ghost" 
-               size="sm" 
-               disabled={page >= pageCount} 
-               onClick={() => setPage(p => p + 1)}
-             >
-               Next
-             </Button>
-           </div>
-        </div>
-      </div>
-
-      <AutoForm
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        onSubmit={handleSave}
-        title={meta?.name || 'Item'}
-        fields={meta?.fields || []}
-        initialData={currentRecord}
-      />
-    </Card>
-  );
-};
-</file>
-
-<file path="template/src/components/AutoForm.tsx">
-import React, { useMemo } from 'react';
-import { Drawer, FormTemplate, Button, type FormField } from '@ramme-io/ui';
-
-interface AutoFormProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (data: any) => void;
-  title: string;
-  fields: any[]; // The raw metadata from app.manifest.ts
-  initialData?: any;
-}
-
-export const AutoForm: React.FC<AutoFormProps> = ({
-  isOpen,
-  onClose,
-  onSubmit,
-  title,
-  fields,
-  initialData
-}) => {
-  
-  // 1. Safe Data Handling
-  const safeData = initialData || {};
-  const isEditMode = !!safeData.id;
-
-  // 2. Schema-to-UI Mapping Engine
-  const formFields = useMemo<FormField[]>(() => {
-    return fields
-      // 🛑 RULE 1: Hide ID field during creation (System handles it)
-      .filter((f: any) => !(f.key === 'id' && !isEditMode))
-      .map((f: any) => {
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      const isIdField = f.key === 'id';
-
-      // Base Configuration for all fields
-      const baseConfig = {
-        name: f.key,
-        label: f.label,
-        required: f.required,
-        placeholder: f.description || `Enter ${f.label.toLowerCase()}`,
-        // Pre-fill data if editing, or use default from schema
-        value: safeData[f.key] !== undefined ? safeData[f.key] : (f.defaultValue || ''),
-        colSpan: 1,
-        // 🛑 RULE 2: If it's the ID field, force it to be disabled (View Only)
-        disabled: isIdField
-      };
-
-      // Intelligent Type Switching
-      switch (f.type) {
-        case 'number':
-        case 'integer':
-        case 'currency':
-          return { 
-            ...baseConfig, 
-            type: 'number',
-            value: Number(baseConfig.value) || 0 
-          };
-
-        case 'boolean':
-          return { 
-            ...baseConfig, 
-            type: 'toggle', 
-            checked: !!baseConfig.value 
-          };
-
-        case 'date':
-          return { 
-            ...baseConfig, 
-            type: 'datepicker', 
-            value: baseConfig.value ? new Date(baseConfig.value) : null 
-          };
-
-        case 'status':
-          return { 
-            ...baseConfig, 
-            type: 'select', 
-            options: [
-              { value: 'Active', label: 'Active' },
-              { value: 'Pending', label: 'Pending' },
-              { value: 'Inactive', label: 'Inactive' },
-              { value: 'Archived', label: 'Archived' }
-            ]
-          };
-
-        case 'textarea':
-          return { 
-            ...baseConfig, 
-            type: 'textarea', 
-            colSpan: 2 
-          };
-
-        case 'email':
-          return { ...baseConfig, type: 'email' };
-
-        default:
-          return { ...baseConfig, type: 'text' };
-      }
-    });
-  }, [fields, safeData, isEditMode]);
-
-  return (
-    <Drawer
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`${isEditMode ? 'Edit' : 'New'} ${title}`}
-      size="500px"
-    >
-      <div className="p-6">
-        <FormTemplate 
-          fields={formFields} 
-          onSubmit={(formData) => {
-            // Merge original ID to ensure we update the correct record
-            onSubmit({ ...safeData, ...formData }); 
-          }} 
-        >
-            <div className="flex justify-end gap-2 mt-8 pt-4 border-t border-border">
-                <Button variant="outline" onClick={onClose} type="button">
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary">
-                  {isEditMode ? 'Save Changes' : 'Create Record'}
-                </Button>
-            </div>
-        </FormTemplate>
+      {/* HERO */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary to-violet-600 text-primary-foreground p-8 md:p-12">
+        <div className="relative z-10 max-w-2xl">
+          <Badge variant="secondary" className="mb-4 bg-white/20 text-white border-none backdrop-blur-sm">
+            v1.2.0 Starter Kit
+          </Badge>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
+            Your Ramme App is Ready.
+          </h1>
+          <p className="text-lg md:text-xl text-primary-foreground/90 mb-8 leading-relaxed">
+            You have successfully scaffolded a production-ready prototype environment. 
+            This kit comes pre-wired with Authentication, Mock Data, and the A.D.A.P.T. architecture.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <Button 
+              size="lg" 
+              variant="secondary" 
+              className="font-semibold"
+              iconLeft="layout-dashboard"
+              onClick={() => navigate('/dashboard/app')}
+            >
+              Open Live Dashboard
+            </Button>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white"
+              iconLeft="book-open"
+              onClick={() => navigate('/docs')}
+            >
+              Read Documentation
+            </Button>
+          </div>
+        </div>
+        
+        {/* Decorative Background Icon */}
+        <div className="absolute -right-10 -bottom-10 opacity-10 rotate-12">
+          <Icon name="box" size={300} />
+        </div>
       </div>
-    </Drawer>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        {/* SECTION 1: ARCHITECTURE */}
+        <div className="space-y-4">
+          <SectionHeader title="Project Architecture" />
+          <div className="grid gap-4">
+            <Card className="p-4 flex gap-4 hover:border-primary/50 transition-colors cursor-default">
+              <div className="p-3 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 h-fit">
+                <Icon name="database" size={24} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Data Lake</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Mock data is seeded into <code>localStorage</code> on boot. 
+                  Edit <code>src/data/mockData.ts</code> to change the schema.
+                </p>
+              </div>
+            </Card>
+
+            <Card className="p-4 flex gap-4 hover:border-primary/50 transition-colors cursor-default">
+              <div className="p-3 rounded-lg bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 h-fit">
+                <Icon name="git-branch" size={24} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Logic Engine</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Workflows and signals are processed in real-time by 
+                  <code>useWorkflowEngine.ts</code>. Supports MQTT and simulated sensors.
+                </p>
+              </div>
+            </Card>
+
+            <Card className="p-4 flex gap-4 hover:border-primary/50 transition-colors cursor-default">
+              <div className="p-3 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 h-fit">
+                <Icon name="layout" size={24} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Dynamic Routing</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Pages are generated from <code>app.manifest.ts</code>. 
+                  Visual blocks connect automatically to data sources.
+                </p>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* SECTION 2: RESOURCES */}
+        <div className="space-y-4">
+          <SectionHeader title="Developer Resources" />
+          
+          <Card className="p-6 space-y-6">
+            <div>
+              <h4 className="font-semibold flex items-center gap-2 mb-2">
+                <Icon name="palette" size={16} className="text-muted-foreground" />
+                Component Library
+              </h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                Browse the full suite of accessible UI components available in this project.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => navigate('/styleguide')}>
+                View Style Guide
+              </Button>
+            </div>
+
+            <div className="border-t border-border pt-6">
+              <h4 className="font-semibold flex items-center gap-2 mb-2">
+                <Icon name="settings" size={16} className="text-muted-foreground" />
+                Configuration
+              </h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                Manage global settings, user profile templates, and billing layouts.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
+                Open Settings
+              </Button>
+            </div>
+
+            <div className="border-t border-border pt-6">
+              <h4 className="font-semibold flex items-center gap-2 mb-2">
+                <Icon name="github" size={16} className="text-muted-foreground" />
+                Community
+              </h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                Need help? Check the docs or open an issue on GitHub.
+              </p>
+              <a 
+                href="https://github.com/ramme-io/create-app" 
+                target="_blank" 
+                rel="noreferrer"
+                className="inline-flex"
+              >
+                <Button variant="ghost" size="sm">GitHub Repo &rarr;</Button>
+              </a>
+            </div>
+          </Card>
+        </div>
+
+      </div>
+    </div>
   );
 };
-</file>
 
-<file path="template/src/core/data-seeder.ts">
-// ✅ Match the export from your new mockData.ts
-import { DATA_REGISTRY } from '../data/mockData'; 
-
-const DB_PREFIX = 'ramme_db_';
-
-export const initializeDataLake = () => {
-  if (typeof window === 'undefined') return;
-
-  console.groupCollapsed('🌊 [Data Lake] Initialization');
-  
-  Object.entries(DATA_REGISTRY).forEach(([key, seedData]) => {
-    const storageKey = `${DB_PREFIX}${key}`;
-    const existing = localStorage.getItem(storageKey);
-
-    if (!existing) {
-      console.log(`✨ Seeding collection: ${key} (${seedData.length} records)`);
-      localStorage.setItem(storageKey, JSON.stringify(seedData));
-    } else {
-      console.log(`✅ Collection exists: ${key}`);
-    }
-  });
-
-  console.groupEnd();
-};
-
-/**
- * Utility to clear the lake (useful for a "Reset Data" button)
- */
-export const resetDataLake = () => {
-  // ✅ FIX: Use DATA_REGISTRY (the new name)
-  Object.keys(DATA_REGISTRY).forEach((key) => {
-    localStorage.removeItem(`${DB_PREFIX}${key}`);
-  });
-  window.location.reload();
-};
-</file>
-
-<file path="template/src/hooks/useDataQuery.ts">
-import { useMemo } from 'react';
-
-// --- 1. Export the Missing Types (Fixes ts(2305)) ---
-
-export type SortDirection = 'asc' | 'desc';
-
-export interface SortOption {
-  field: string;
-  direction: SortDirection;
-}
-
-export interface FilterOption {
-  field: string;
-  operator: 'equals' | 'contains' | 'gt' | 'lt' | 'neq';
-  value: any;
-}
-
-export interface QueryOptions {
-  filters?: FilterOption[];
-  sort?: SortOption;
-  page?: number;
-  pageSize?: number;
-}
-
-export interface QueryResult<T> {
-  data: T[];
-  total: number;
-  pageCount: number;
-}
-
-// --- 2. Update the Hook Signature (Fixes ts(2345)) ---
-
-export function useDataQuery<T>(
-  rawData: T[], // <--- Now accepts an Array, NOT a string ID
-  options: QueryOptions = {}
-): QueryResult<T> {
-  const { filters, sort, page = 1, pageSize = 10 } = options;
-
-  // A. Filtering Logic
-  const filteredData = useMemo(() => {
-    if (!filters || filters.length === 0) return rawData;
-
-    return rawData.filter((item: any) => {
-      return filters.every((filter) => {
-        const itemValue = item[filter.field];
-        
-        switch (filter.operator) {
-          case 'equals': return itemValue == filter.value;
-          case 'neq': return itemValue != filter.value;
-          case 'contains': 
-            return String(itemValue).toLowerCase().includes(String(filter.value).toLowerCase());
-          case 'gt': return itemValue > filter.value;
-          case 'lt': return itemValue < filter.value;
-          default: return true;
-        }
-      });
-    });
-  }, [rawData, filters]);
-
-  // B. Sorting Logic
-  const sortedData = useMemo(() => {
-    if (!sort) return filteredData;
-
-    return [...filteredData].sort((a: any, b: any) => {
-      const aValue = a[sort.field];
-      const bValue = b[sort.field];
-      if (aValue < bValue) return sort.direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sort.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [filteredData, sort]);
-
-  // C. Pagination Logic
-  const paginatedResult = useMemo(() => {
-    const startIndex = (page - 1) * pageSize;
-    return sortedData.slice(startIndex, startIndex + pageSize);
-  }, [sortedData, page, pageSize]);
-
-  return {
-    data: paginatedResult,
-    total: filteredData.length,
-    pageCount: Math.ceil(filteredData.length / pageSize),
-  };
-}
-</file>
-
-<file path="template/src/hooks/useWorkflowEngine.ts">
-// Placeholder for the Generated Engine
-export const useWorkflowEngine = () => {
-  // This will be overwritten by the Builder at runtime
-  console.log(" [Mock] Workflow Engine Mounted");
-  return {};
-};
+export default Welcome;
 </file>
 
 <file path="template/public/api_mock.json">
@@ -673,73 +381,229 @@ export const useWorkflowEngine = () => {
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
 </file>
 
-<file path="template/src/components/dev/GhostOverlay.tsx">
-import React from 'react';
-import { Icon } from '@ramme-io/ui';
+<file path="template/src/blocks/SmartTable.tsx">
+import React, { useState, useMemo, useCallback } from 'react';
+import { 
+  DataTable, 
+  Button, 
+  Icon, 
+  Card, 
+  useToast, 
+  SearchInput,
+  type ColDef,
+  type GridApi 
+} from '@ramme-io/ui';
+import { getResourceMeta, getMockData } from '../data/mockData';
+import { AutoForm } from '../components/AutoForm';
+import { useCrudLocalStorage } from '../hooks/useCrudLocalStorage';
 
-interface GhostOverlayProps {
-  children: React.ReactNode;
-  componentId: string;
-  componentType: string;
-  signalId?: string;
-  isActive?: boolean;
+interface SmartTableProps {
+  dataId: string;
+  title?: string;
+  initialFilter?: Record<string, any>; 
 }
 
-export const GhostOverlay: React.FC<GhostOverlayProps> = ({
-  children,
-  componentId,
-  componentType,
-  signalId,
-  isActive = false,
+export const SmartTable: React.FC<SmartTableProps> = ({ 
+  dataId, 
+  title,
+  initialFilter
 }) => {
+  const { addToast } = useToast();
   
-  if (!isActive) {
-    return <>{children}</>;
-  }
+  // 1. DATA KERNEL
+  const meta = getResourceMeta(dataId);
+  const seedData = useMemo(() => getMockData(dataId) || [], [dataId]);
+  
+  // We use the CRUD hook to persist changes to localStorage
+  const { 
+    data: rowData, 
+    createItem, 
+    updateItem, 
+    deleteItem 
+  } = useCrudLocalStorage<any>(`ramme_db_${dataId}`, seedData);
 
-  const handleClick = (e: React.MouseEvent) => {
-    // 🛑 Stop the click from triggering app logic (like navigation or toggles)
-    e.preventDefault();
-    e.stopPropagation();
+  // 2. UI STATE
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [currentRecord, setCurrentRecord] = useState<any>(null);
+  const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const [selectedRows, setSelectedRows] = useState<any[]>([]);
+  const [quickFilterText, setQuickFilterText] = useState('');
 
-    // 🚀 THE GHOST BRIDGE: Signal the Parent (The Builder)
-    window.parent.postMessage({
-      type: 'RAMME_SELECT_BLOCK',
-      payload: { blockId: componentId }
-    }, '*');
+  // 3. COLUMN DEFINITIONS
+  const columns = useMemo<ColDef[]>(() => {
+    if (!meta?.fields) return [];
+
+    const generatedCols: ColDef[] = meta.fields.map((f: any) => {
+      const col: ColDef = {
+        field: f.key,
+        headerName: f.label,
+        filter: true,
+        sortable: true,
+        resizable: true,
+        flex: 1,
+      };
+
+      // Smart Formatting based on type
+      if (f.type === 'currency') {
+        col.valueFormatter = (p: any) => p.value ? `$${Number(p.value).toLocaleString()}` : '';
+      }
+      if (f.type === 'date') {
+        col.valueFormatter = (p: any) => p.value ? new Date(p.value).toLocaleDateString() : '';
+      }
+      if (f.type === 'status') {
+        col.cellRenderer = (p: any) => {
+          const statusColors: any = {
+            active: 'bg-green-100 text-green-800',
+            paid: 'bg-green-100 text-green-800',
+            pending: 'bg-yellow-100 text-yellow-800',
+            inactive: 'bg-slate-100 text-slate-600',
+            overdue: 'bg-red-100 text-red-800'
+          };
+          const colorClass = statusColors[String(p.value).toLowerCase()] || 'bg-slate-100 text-slate-800';
+          return (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+              {p.value}
+            </span>
+          );
+        };
+      }
+      return col;
+    });
+
+    // Add Checkbox Selection to the first column
+    if (generatedCols.length > 0) {
+      generatedCols[0].headerCheckboxSelection = true;
+      generatedCols[0].checkboxSelection = true;
+      generatedCols[0].minWidth = 180;
+    }
+
+    // Add Actions Column
+    generatedCols.push({
+      headerName: "Actions",
+      field: "id",
+      width: 100,
+      pinned: 'right',
+      cellRenderer: (params: any) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setCurrentRecord(params.data); setIsEditOpen(true); }}>
+            <Icon name="edit-2" size={14} className="text-slate-500" />
+          </Button>
+        </div>
+      )
+    });
+
+    return generatedCols;
+  }, [meta]);
+
+  // 4. HANDLERS
+  const onGridReady = useCallback((params: any) => {
+    setGridApi(params.api);
+  }, []);
+
+  const onSelectionChanged = useCallback(() => {
+    if (gridApi) {
+      setSelectedRows(gridApi.getSelectedRows());
+    }
+  }, [gridApi]);
+
+  const handleBulkDelete = () => {
+    if (confirm(`Delete ${selectedRows.length} items?`)) {
+      selectedRows.forEach(row => deleteItem(row.id));
+      setSelectedRows([]);
+      addToast(`${selectedRows.length} items deleted`, 'success');
+    }
   };
 
+  const handleSave = (record: any) => {
+    if (record.id && currentRecord?.id) {
+      updateItem(record);
+      addToast('Item updated', 'success');
+    } else {
+      const { id, ...newItem } = record;
+      createItem(newItem);
+      addToast('Item created', 'success');
+    }
+    setIsEditOpen(false);
+  };
+
+  // --- RENDER ---
   return (
-    <div 
-      className="relative group cursor-pointer"
-      onClick={handleClick} // ✅ Add Click Handler
-    >
-      {/* The "Ghost" Border */}
-      <div className="absolute inset-0 z-50 border-2 border-dashed border-accent/50 rounded-lg bg-accent/5 group-hover:bg-accent/10 transition-colors pointer-events-none" />
-
-      {/* The "Info Tag" */}
-      <div className="absolute top-0 left-0 z-50 p-2 transform -translate-y-1/2 translate-x-2 pointer-events-none">
-        <div className="flex items-center gap-2 bg-accent text-accent-foreground text-xs font-mono py-1 px-2 rounded shadow-sm">
-          <Icon name="box" size={12} />
-          <span className="font-bold">{componentType}</span>
-        </div>
-      </div>
-
-      {/* The "Signal Wire" */}
-      {signalId && (
-        <div className="absolute bottom-0 right-0 z-50 p-2 transform translate-y-1/2 -translate-x-2 pointer-events-none">
-           <div className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-mono py-1 px-2 rounded shadow-sm">
-            <Icon name="activity" size={12} />
-            <span>{signalId}</span>
+    <Card className="flex flex-col h-[600px] border border-border shadow-sm overflow-hidden bg-card">
+      
+      {/* HEADER TOOLBAR */}
+      <div className="p-4 border-b border-border flex justify-between items-center gap-4 bg-muted/5">
+        
+        {/* Left: Title or Bulk Actions */}
+        {selectedRows.length > 0 ? (
+          <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-200">
+            <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-md">
+              {selectedRows.length} Selected
+            </span>
+            <Button size="sm" variant="danger" onClick={handleBulkDelete} iconLeft="trash-2">
+              Delete Selected
+            </Button>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-primary/10 rounded-md text-primary">
+              <Icon name="table" size={18} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground leading-tight">
+                {title || meta?.name || dataId}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {rowData.length} records found
+              </p>
+            </div>
+          </div>
+        )}
 
-      {/* Render the actual component underneath */}
-      <div className="opacity-50 grayscale transition-all duration-200 group-hover:opacity-75 group-hover:grayscale-0 pointer-events-none">
-        {children}
+        {/* Right: Actions & Filter */}
+        <div className="flex items-center gap-2">
+          <div className="w-64">
+            <SearchInput 
+              placeholder="Quick search..." 
+              value={quickFilterText}
+              onChange={(e) => {
+                setQuickFilterText(e.target.value);
+                gridApi?.setQuickFilter(e.target.value);
+              }}
+            />
+          </div>
+          <div className="h-6 w-px bg-border mx-1" />
+          <Button size="sm" variant="primary" iconLeft="plus" onClick={() => { setCurrentRecord({}); setIsEditOpen(true); }}>
+            Add New
+          </Button>
+        </div>
       </div>
-    </div>
+
+      {/* AG GRID */}
+      <div className="flex-1 w-full bg-card relative">
+        <DataTable 
+          rowData={rowData} 
+          columnDefs={columns} 
+          onGridReady={onGridReady}
+          onSelectionChanged={onSelectionChanged}
+          rowSelection="multiple"
+          pagination={true}
+          paginationPageSize={10}
+          headerHeight={48}
+          rowHeight={48}
+          enableCellTextSelection={true}
+        />
+      </div>
+
+      {/* EDIT DRAWER */}
+      <AutoForm
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        onSubmit={handleSave}
+        title={meta?.name || 'Item'}
+        fields={meta?.fields || []}
+        initialData={currentRecord}
+      />
+    </Card>
   );
 };
 </file>
@@ -922,6 +786,137 @@ const AppFooter: React.FC = () => {
 };
 
 export default AppFooter;
+</file>
+
+<file path="template/src/components/AutoForm.tsx">
+import React, { useMemo } from 'react';
+import { Drawer, FormTemplate, Button, type FormField } from '@ramme-io/ui';
+
+interface AutoFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  title: string;
+  fields: any[]; // The raw metadata from app.manifest.ts
+  initialData?: any;
+}
+
+export const AutoForm: React.FC<AutoFormProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  title,
+  fields,
+  initialData
+}) => {
+  
+  // 1. Safe Data Handling
+  const safeData = initialData || {};
+  const isEditMode = !!safeData.id;
+
+  // 2. Schema-to-UI Mapping Engine
+  const formFields = useMemo<FormField[]>(() => {
+    return fields
+      // 🛑 RULE 1: Hide ID field during creation (System handles it)
+      .filter((f: any) => !(f.key === 'id' && !isEditMode))
+      .map((f: any) => {
+      
+      const isIdField = f.key === 'id';
+
+      // Base Configuration for all fields
+      const baseConfig = {
+        name: f.key,
+        label: f.label,
+        required: f.required,
+        placeholder: f.description || `Enter ${f.label.toLowerCase()}`,
+        // Pre-fill data if editing, or use default from schema
+        value: safeData[f.key] !== undefined ? safeData[f.key] : (f.defaultValue || ''),
+        colSpan: 1,
+        // 🛑 RULE 2: If it's the ID field, force it to be disabled (View Only)
+        disabled: isIdField
+      };
+
+      // Intelligent Type Switching
+      switch (f.type) {
+        case 'number':
+        case 'integer':
+        case 'currency':
+          return { 
+            ...baseConfig, 
+            type: 'number',
+            value: Number(baseConfig.value) || 0 
+          };
+
+        case 'boolean':
+          return { 
+            ...baseConfig, 
+            type: 'toggle', 
+            checked: !!baseConfig.value 
+          };
+
+        case 'date':
+          return { 
+            ...baseConfig, 
+            type: 'datepicker', 
+            value: baseConfig.value ? new Date(baseConfig.value) : null 
+          };
+
+        case 'status':
+          return { 
+            ...baseConfig, 
+            type: 'select', 
+            options: [
+              { value: 'Active', label: 'Active' },
+              { value: 'Pending', label: 'Pending' },
+              { value: 'Inactive', label: 'Inactive' },
+              { value: 'Archived', label: 'Archived' }
+            ]
+          };
+
+        case 'textarea':
+          return { 
+            ...baseConfig, 
+            type: 'textarea', 
+            colSpan: 2 
+          };
+
+        case 'email':
+          return { ...baseConfig, type: 'email' };
+
+        default:
+          return { ...baseConfig, type: 'text' };
+      }
+    });
+  }, [fields, safeData, isEditMode]);
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`${isEditMode ? 'Edit' : 'New'} ${title}`}
+      size="500px"
+    >
+      <div className="p-6">
+        <FormTemplate 
+          fields={formFields} 
+          onSubmit={(formData) => {
+            // Merge original ID to ensure we update the correct record
+            onSubmit({ ...safeData, ...formData }); 
+          }} 
+        >
+            <div className="flex justify-end gap-2 mt-8 pt-4 border-t border-border">
+                <Button variant="outline" onClick={onClose} type="button">
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  {isEditMode ? 'Save Changes' : 'Create Record'}
+                </Button>
+            </div>
+        </FormTemplate>
+      </div>
+    </Drawer>
+  );
+};
 </file>
 
 <file path="template/src/components/HashLinkScroll.tsx">
@@ -1520,6 +1515,44 @@ export const useSitemap = () => {
 export const SitemapProvider = SitemapContext.Provider;
 </file>
 
+<file path="template/src/core/data-seeder.ts">
+// ✅ Match the export from your new mockData.ts
+import { DATA_REGISTRY } from '../data/mockData'; 
+
+const DB_PREFIX = 'ramme_db_';
+
+export const initializeDataLake = () => {
+  if (typeof window === 'undefined') return;
+
+  console.groupCollapsed('🌊 [Data Lake] Initialization');
+  
+  Object.entries(DATA_REGISTRY).forEach(([key, seedData]) => {
+    const storageKey = `${DB_PREFIX}${key}`;
+    const existing = localStorage.getItem(storageKey);
+
+    if (!existing) {
+      console.log(`✨ Seeding collection: ${key} (${seedData.length} records)`);
+      localStorage.setItem(storageKey, JSON.stringify(seedData));
+    } else {
+      console.log(`✅ Collection exists: ${key}`);
+    }
+  });
+
+  console.groupEnd();
+};
+
+/**
+ * Utility to clear the lake (useful for a "Reset Data" button)
+ */
+export const resetDataLake = () => {
+  // ✅ FIX: Use DATA_REGISTRY (the new name)
+  Object.keys(DATA_REGISTRY).forEach((key) => {
+    localStorage.removeItem(`${DB_PREFIX}${key}`);
+  });
+  window.location.reload();
+};
+</file>
+
 <file path="template/src/core/route-generator.tsx">
 /**
  * @file route-generator.tsx
@@ -1856,6 +1889,93 @@ export const useCrudLocalStorage = <T extends { id: any }>(
 };
 </file>
 
+<file path="template/src/hooks/useDataQuery.ts">
+import { useMemo } from 'react';
+
+// --- 1. Export the Missing Types (Fixes ts(2305)) ---
+
+export type SortDirection = 'asc' | 'desc';
+
+export interface SortOption {
+  field: string;
+  direction: SortDirection;
+}
+
+export interface FilterOption {
+  field: string;
+  operator: 'equals' | 'contains' | 'gt' | 'lt' | 'neq';
+  value: any;
+}
+
+export interface QueryOptions {
+  filters?: FilterOption[];
+  sort?: SortOption;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface QueryResult<T> {
+  data: T[];
+  total: number;
+  pageCount: number;
+}
+
+// --- 2. Update the Hook Signature (Fixes ts(2345)) ---
+
+export function useDataQuery<T>(
+  rawData: T[], // <--- Now accepts an Array, NOT a string ID
+  options: QueryOptions = {}
+): QueryResult<T> {
+  const { filters, sort, page = 1, pageSize = 10 } = options;
+
+  // A. Filtering Logic
+  const filteredData = useMemo(() => {
+    if (!filters || filters.length === 0) return rawData;
+
+    return rawData.filter((item: any) => {
+      return filters.every((filter) => {
+        const itemValue = item[filter.field];
+        
+        switch (filter.operator) {
+          case 'equals': return itemValue == filter.value;
+          case 'neq': return itemValue != filter.value;
+          case 'contains': 
+            return String(itemValue).toLowerCase().includes(String(filter.value).toLowerCase());
+          case 'gt': return itemValue > filter.value;
+          case 'lt': return itemValue < filter.value;
+          default: return true;
+        }
+      });
+    });
+  }, [rawData, filters]);
+
+  // B. Sorting Logic
+  const sortedData = useMemo(() => {
+    if (!sort) return filteredData;
+
+    return [...filteredData].sort((a: any, b: any) => {
+      const aValue = a[sort.field];
+      const bValue = b[sort.field];
+      if (aValue < bValue) return sort.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sort.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredData, sort]);
+
+  // C. Pagination Logic
+  const paginatedResult = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return sortedData.slice(startIndex, startIndex + pageSize);
+  }, [sortedData, page, pageSize]);
+
+  return {
+    data: paginatedResult,
+    total: filteredData.length,
+    pageCount: Math.ceil(filteredData.length / pageSize),
+  };
+}
+</file>
+
 <file path="template/src/hooks/useDevTools.ts">
 import { useState, useEffect, useCallback } from 'react';
 
@@ -1989,90 +2109,130 @@ export const useMockChat = () => {
 };
 </file>
 
-<file path="template/src/hooks/useSignal.ts">
-import { useState, useEffect } from 'react';
-import { useMqtt } from '../contexts/MqttContext';
-import type { Signal } from '../types/signal';
+<file path="template/src/hooks/useWorkflowEngine.ts">
+import { useEffect } from 'react';
+import { useToast } from '@ramme-io/ui';
+// @ts-ignore - These generated hooks exist in the build
+import { useGeneratedSignals, useSimulation } from '../generated/hooks';
+import { appManifest } from '../config/app.manifest';
+// ✅ Import types to fix implicit 'any' errors
+import type { ActionDefinition, WorkflowDefinition } from '../types/schema';
 
-interface SignalConfig<T> {
-  initialValue?: T;
-  min?: number;     
-  max?: number;
-  interval?: number; // Mock mode only
-  unit?: string;
-  topic?: string;    // Real mode only
-}
+/**
+ * THE RUNTIME LOGIC ENGINE
+ * This hook breathes life into the application.
+ * It watches for signal changes and executes the workflows defined in the manifest.
+ */
+export const useWorkflowEngine = () => {
+  const signals = useGeneratedSignals();
+  const { addToast } = useToast();
+  
+  // 1. Activate the Data Simulation (Randomizer)
+  useSimulation();
 
-export function useSignal<T = any>(signalId: string, config: SignalConfig<T> = {}): Signal<T> {
-  const { 
-    initialValue, 
-    min = -Infinity, 
-    max = Infinity, 
-    interval = 2000, 
-    unit,
-    topic 
-  } = config;
+  // 2. Define the Action Executor
+  // ✅ Explicitly typed 'action'
+  const executeAction = async (action: ActionDefinition, context: any) => {
+    console.log(`[Engine] Executing: ${action.type}`, action);
 
-  const { subscribe, unsubscribe, lastMessage, isConnected } = useMqtt();
+    switch (action.type) {
+      case 'send_notification':
+        addToast(action.config.message || 'Notification Sent', 'info');
+        break;
 
-  const [signal, setSignal] = useState<Signal<T>>({
-    id: signalId,
-    value: initialValue as T,
-    unit: unit,
-    timestamp: Date.now(),
-    status: 'fresh',
-    max: max 
-  });
+      case 'update_resource':
+        // In a real app, this would call the API
+        addToast(`Updating Resource: ${JSON.stringify(action.config)}`, 'success');
+        break;
 
-  // --- REAL MODE: MQTT ---
+      case 'agent_task':
+        // Simulate AI Agent processing
+        console.log(`[AI Agent] Thinking about: "${action.config.prompt}"...`);
+        // ✅ FIX: 'loading' is not a valid ToastType. Using 'info' instead.
+        addToast('AI Agent Analyzing...', 'info');
+        
+        setTimeout(() => {
+          // Mock response based on prompt context
+          const response = action.config.prompt?.includes('health') 
+            ? "System Operating Normally." 
+            : "Optimization Recommended.";
+            
+          addToast(`🤖 Agent: "${response}"`, 'success', 5000);
+        }, 1500);
+        break;
+
+      case 'navigate':
+        window.location.href = action.config.path;
+        break;
+
+      default:
+        console.warn('Unknown action type:', action.type);
+    }
+  };
+
+  // 3. Watch Signals & Trigger Workflows
   useEffect(() => {
-    if (!topic || !isConnected) return;
-    subscribe(topic);
-    return () => unsubscribe(topic);
-  }, [topic, isConnected, subscribe, unsubscribe]);
+    if (!appManifest.domain?.workflows) return;
 
-  useEffect(() => {
-    if (!topic || !lastMessage[topic]) return;
+    // ✅ Explicitly typed 'flow'
+    appManifest.domain.workflows.forEach((flow: WorkflowDefinition) => {
+      if (!flow.active) return;
 
-    const rawValue = lastMessage[topic];
-    let parsedValue: any = rawValue;
-
-    // Auto-parse numbers and booleans
-    if (!isNaN(Number(rawValue))) parsedValue = Number(rawValue);
-    else if (rawValue.toLowerCase() === 'true' || rawValue === 'on') parsedValue = true;
-    else if (rawValue.toLowerCase() === 'false' || rawValue === 'off') parsedValue = false;
-
-    setSignal(prev => ({
-        ...prev,
-        value: parsedValue,
-        timestamp: Date.now(),
-        status: 'fresh'
-    }));
-  }, [lastMessage, topic]);
-
-  // --- MOCK MODE: SIMULATION ---
-  useEffect(() => {
-    if (topic) return; // Disable mock if topic exists
-
-    const timer = setInterval(() => {
-      setSignal(prev => {
-        let newValue: any = prev.value;
-        if (typeof prev.value === 'number') {
-            const variance = (Math.random() - 0.5) * 2; 
-            let nextNum = prev.value + variance;
-            if (min !== undefined) nextNum = Math.max(min, nextNum);
-            if (max !== undefined) nextNum = Math.min(max, nextNum);
-            newValue = Number(nextNum.toFixed(1));
+      // Check Trigger: Signal Change
+      if (flow.trigger.type === 'signal_change') {
+        const signalId = flow.trigger.config.signalId;
+        const condition = flow.trigger.config.condition; // e.g., "> 80"
+        
+        // @ts-ignore
+        const signal = signals[signalId];
+        
+        if (signal) {
+          const val = typeof signal === 'object' ? signal.value : signal;
+          
+          try {
+            // Check if condition is met (e.g. "50 > 80")
+            const isMet = checkCondition(val, condition); 
+            
+            if (isMet) {
+              // Throttling logic would go here to prevent spam
+              console.log(`[Engine] Trigger Fired: ${flow.name}`);
+              flow.actions.forEach(action => executeAction(action, { signal: val }));
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
         }
-        return { ...prev, value: newValue, timestamp: Date.now(), status: 'fresh' };
-      });
-    }, interval); 
+      }
+    });
+  }, [signals, addToast]); 
 
-    return () => clearInterval(timer);
-  }, [topic, min, max, interval]);
+  return { 
+    // Exposed for manual triggering (e.g. Buttons)
+    triggerWorkflow: (workflowId: string) => {
+      const flow = appManifest.domain?.workflows?.find(w => w.id === workflowId);
+      if (flow) {
+        flow.actions.forEach(action => executeAction(action, { manual: true }));
+      }
+    }
+  };
+};
 
-  return signal;
-}
+// --- HELPER: Safe Condition Checker ---
+const checkCondition = (value: number, condition: string): boolean => {
+  if (!condition) return false;
+  const parts = condition.trim().split(' ');
+  const operator = parts[0];
+  const target = parseFloat(parts[1]);
+
+  switch (operator) {
+    case '>': return value > target;
+    case '<': return value < target;
+    case '>=': return value >= target;
+    case '<=': return value <= target;
+    case '==': return value === target;
+    default: return false;
+  }
+};
 </file>
 
 <file path="template/src/layouts/DataLayout.tsx">
@@ -4267,104 +4427,6 @@ const DataGridPage: React.FC = () => {
 export default DataGridPage;
 </file>
 
-<file path="template/src/pages/DynamicPage.tsx">
-import React from 'react';
-import { PageHeader, Alert, Button, Icon } from '@ramme-io/ui';
-import { appManifest } from '../config/app.manifest';
-// Reuse the GhostOverlay for structure visualization
-import { GhostOverlay } from '../components/dev/GhostOverlay';
-// Import the Worker Bee
-import { DynamicBlock } from '../components/DynamicBlock';
-// Import the Hook to control the overlay
-import { useDevTools } from '../hooks/useDevTools';
-
-interface DynamicPageProps {
-  pageId: string;
-}
-
-export const DynamicPage: React.FC<DynamicPageProps> = ({ pageId }) => {
-  // 1. Initialize DevTools
-  const { isGhostMode, toggleGhostMode } = useDevTools();
-
-  // 2. Look up the page definition
-  const pageConfig = (appManifest as any).pages?.find((p: any) => p.id === pageId);
-
-  if (!pageConfig) {
-    return (
-      <div className="p-8">
-        <Alert variant="danger" title="Page Not Found">
-          The manifest does not contain a page with ID: <code>{pageId}</code>.
-        </Alert>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-8 fade-in p-6">
-      <PageHeader 
-        title={pageConfig.title} 
-        description={pageConfig.description}
-        actions={
-          <Button 
-            variant={isGhostMode ? 'accent' : 'outline'} 
-            size="sm"
-            onClick={toggleGhostMode}
-            title="Toggle Ghost Mode (Ctrl+Shift+G)"
-          >
-            <Icon name={isGhostMode ? 'eye' : 'eye-off'} className="mr-2" />
-            {isGhostMode ? 'Ghost Mode: ON' : 'Dev Tools'}
-          </Button>
-        }
-      />
-
-      {/* 4. Render Sections */}
-      {pageConfig.sections.map((section: any) => (
-        <div key={section.id} className="space-y-4">
-          {section.title && <h3 className="text-xl font-semibold">{section.title}</h3>}
-          
-          <div 
-            className="grid gap-6"
-            style={{ 
-              // ⚡️ IMPROVEMENT: Default to 1 column (Full Width) instead of 3.
-              // This fixes the "narrow table" issue immediately.
-              gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` 
-            }}
-          >
-            {section.blocks.map((block: any) => {
-              // ⚡️ IMPROVEMENT: Calculate Spanning
-              // Allows a block to stretch across multiple columns if needed.
-              const colSpan = block.layout?.colSpan || 1;
-              const rowSpan = block.layout?.rowSpan || 1;
-
-              return (
-                <div 
-                  key={block.id}
-                  style={{ 
-                    gridColumn: `span ${colSpan}`,
-                    gridRow: `span ${rowSpan}`
-                  }}
-                >
-                   <GhostOverlay 
-                     isActive={isGhostMode}
-                     componentId={block.id} 
-                     componentType={block.type}
-                     signalId={block.props.signalId}
-                   >
-                     <DynamicBlock block={block} />
-                   </GhostOverlay>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-export default DynamicPage;
-</file>
-
 <file path="template/src/pages/GenericContentPage.tsx">
 import React from 'react';
 import { PageHeader } from '@ramme-io/ui'; // Assuming we have this
@@ -4690,65 +4752,6 @@ export const settingsSitemap: SitemapEntry[] = [
 }
 </file>
 
-<file path="template/src/App.tsx">
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { generateRoutes } from './core/route-generator';
-import { useEffect } from 'react'; // <-- 1. Import useEffect
-
-// --- 1. IMPORT ALL THREE TEMPLATES ---
-import DashboardLayout from './templates/dashboard/DashboardLayout';
-import { dashboardSitemap as dashboardSitemap } from './templates/dashboard/dashboard.sitemap';
-import DocsLayout from './templates/docs/DocsLayout';
-import { docsSitemap as docsSitemap } from './templates/docs/docs.sitemap';
-import SettingsLayout from './templates/settings/SettingsLayout';
-import { settingsSitemap as settingsSitemap } from './templates/settings/settings.sitemap';
-
-// Other Imports
-import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPage';
-import NotFound from './pages/styleguide/NotFound';
-
-// --- 2. IMPORT THE SEEDER ---
-import { initializeDataLake } from './core/data-seeder'; 
-
-function App() {
-  
-  // ✅ 3. TRIGGER DATA SEEDING ON MOUNT
-  // This checks localStorage and injects our mock database if missing.
-  useEffect(() => {
-    initializeDataLake();
-  }, []);
-
-  return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<ProtectedRoute />}>
-        {/* Default redirect to the dashboard's root */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-        {/* Dashboard Template Routes */}
-        <Route path="/dashboard/*" element={<DashboardLayout />}>
-          {generateRoutes(dashboardSitemap)}
-        </Route>
-
-        {/* Docs Template Routes */}
-        <Route path="/docs/*" element={<DocsLayout />}>
-          {generateRoutes(docsSitemap)}
-        </Route>
-
-        {/* Settings Layout Route */}
-        <Route path="/settings/*" element={<SettingsLayout />}>
-          {generateRoutes(settingsSitemap)}
-        </Route>
-      </Route>
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-}
-
-export default App;
-</file>
-
 <file path="template/src/index.css">
 @import '@ramme-io/ui/style.css';
 
@@ -5025,6 +5028,77 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 </file>
 
+<file path="template/src/components/dev/GhostOverlay.tsx">
+import React from 'react';
+import { Icon } from '@ramme-io/ui';
+
+interface GhostOverlayProps {
+  children: React.ReactNode;
+  componentId: string;
+  componentType: string;
+  signalId?: string;
+  isActive?: boolean;
+}
+
+export const GhostOverlay: React.FC<GhostOverlayProps> = ({
+  children,
+  componentId,
+  componentType,
+  signalId,
+  isActive = false,
+}) => {
+  
+  if (!isActive) {
+    return <>{children}</>;
+  }
+
+  const handleClick = (e: React.MouseEvent) => {
+    // 🛑 Stop the click from triggering app logic (like navigation or toggles)
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 🚀 THE GHOST BRIDGE: Signal the Parent (The Builder)
+    window.parent.postMessage({
+      type: 'RAMME_SELECT_BLOCK',
+      payload: { blockId: componentId }
+    }, '*');
+  };
+
+  return (
+    <div 
+      className="relative group cursor-pointer"
+      onClick={handleClick} // ✅ Add Click Handler
+    >
+      {/* The "Ghost" Border */}
+      <div className="absolute inset-0 z-50 border-2 border-dashed border-accent/50 rounded-lg bg-accent/5 group-hover:bg-accent/10 transition-colors pointer-events-none" />
+
+      {/* The "Info Tag" */}
+      <div className="absolute top-0 left-0 z-50 p-2 transform -translate-y-1/2 translate-x-2 pointer-events-none">
+        <div className="flex items-center gap-2 bg-accent text-accent-foreground text-xs font-mono py-1 px-2 rounded shadow-sm">
+          <Icon name="box" size={12} />
+          <span className="font-bold">{componentType}</span>
+        </div>
+      </div>
+
+      {/* The "Signal Wire" */}
+      {signalId && (
+        <div className="absolute bottom-0 right-0 z-50 p-2 transform translate-y-1/2 -translate-x-2 pointer-events-none">
+           <div className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-mono py-1 px-2 rounded shadow-sm">
+            <Icon name="activity" size={12} />
+            <span>{signalId}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Render the actual component underneath */}
+      <div className="opacity-50 grayscale transition-all duration-200 group-hover:opacity-75 group-hover:grayscale-0 pointer-events-none">
+        {children}
+      </div>
+    </div>
+  );
+};
+</file>
+
 <file path="template/src/components/AppHeader.tsx">
 /**
  * @file AppHeader.tsx
@@ -5143,69 +5217,6 @@ const AppHeader: React.FC = () => {
 };
 
 export default AppHeader;
-</file>
-
-<file path="template/src/components/DynamicBlock.tsx">
-import React from 'react';
-import { getComponent } from '../core/component-registry';
-// @ts-ignore
-import { useGeneratedSignals } from '../generated/hooks';
-import { getMockData } from '../data/mockData';
-
-const mapSignalStatus = (status: string): string => {
-  switch (status) {
-    case 'fresh': return 'online';
-    case 'stale': return 'warning';
-    case 'disconnected': return 'offline';
-    case 'error': return 'error';
-    default: return 'offline';
-  }
-};
-
-export const DynamicBlock: React.FC<any> = ({ block }) => {
-  const Component = getComponent(block.type);
-  const signals = useGeneratedSignals();
-
-  const { signalId, dataId, ...staticProps } = block.props;
-  
-  const dynamicProps: Record<string, any> = { 
-    ...staticProps,
-    dataId,
-    signalId 
-  };
-
-  // --- DATA INJECTION ---
-  if (dataId) {
-    const resolvedData = getMockData(dataId);
-    dynamicProps.data = resolvedData || [];
-    dynamicProps.rowData = resolvedData || [];
-  }
-
-  // --- SIGNAL INJECTION ---
-  if (signalId && signals && signalId in signals) {
-    // @ts-ignore
-    const signalState = signals[signalId];
-
-    if (signalState) {
-      // ✅ FIX: Handle both Raw Values (Legacy) and Signal Objects (New)
-      // If it's an object with a 'value' property, use that. Otherwise use it directly.
-      const rawValue = (typeof signalState === 'object' && 'value' in signalState) 
-        ? signalState.value 
-        : signalState;
-
-      const status = (typeof signalState === 'object' && 'status' in signalState)
-        ? signalState.status
-        : 'fresh'; // Default for raw values
-
-      dynamicProps.value = typeof rawValue === 'number' ? rawValue : String(rawValue);
-      dynamicProps.status = mapSignalStatus(status);
-    } else {
-      dynamicProps.status = mapSignalStatus('disconnected');
-    }
-  }
-
-  return <Component key={block.id} {...dynamicProps} />;
-};
 </file>
 
 <file path="template/src/config/dashboard.layout.ts">
@@ -5463,222 +5474,90 @@ export interface AppManifest {
 }
 </file>
 
-<file path="template/src/data/mockData.ts">
-/**
- * @file src/data/mockData.ts
- * @description The "Golden Copy" of seed data. 
- * These records are injected into localStorage when the app first launches.
- */
+<file path="template/src/hooks/useSignal.ts">
+import { useState, useEffect } from 'react';
+import { useMqtt } from '../contexts/MqttContext';
+import type { Signal } from '../types/signal';
 
-// ✅ 1. Interface for the Metadata (Schema)
-export interface ResourceMeta {
-  name: string;
-  fields: {
-    key: string;
-    label: string;
-    type: string;
-    required?: boolean;
-    defaultValue?: any;
-    description?: string;
-  }[];
+interface SignalConfig<T> {
+  initialValue?: T;
+  min?: number;     
+  max?: number;
+  interval?: number; // Mock mode only
+  unit?: string;
+  topic?: string;    // Real mode only
 }
 
-// --- DATA INTERFACES ---
+export function useSignal<T = any>(signalId: string, config: SignalConfig<T> = {}): Signal<T> {
+  const { 
+    initialValue, 
+    min = -Infinity, 
+    max = Infinity, 
+    interval = 2000, 
+    unit,
+    topic 
+  } = config;
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'editor' | 'viewer';
-  status: 'active' | 'pending' | 'banned';
-  avatar?: string;
-  joinedAt: string;
-}
+  const { subscribe, unsubscribe, lastMessage, isConnected } = useMqtt();
 
-export interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  stock: number;
-  status: 'in_stock' | 'low_stock' | 'out_of_stock';
-}
-
-export interface Invoice {
-  id: string;
-  userId: string; // Foreign Key -> User
-  amount: number;
-  status: 'paid' | 'pending' | 'overdue';
-  date: string;
-}
-
-export interface Review {
-  id: string;
-  productId: string; // Foreign Key -> Product
-  rating: number;
-  comment: string;
-  author: string;
-  date: string;
-}
-
-export interface ActivityLog {
-  id: string;
-  action: string;
-  entity: string;
-  timestamp: string;
-  user: string;
-}
-
-// --- SEED DATA ---
-
-export const SEED_USERS: User[] = [
-  { id: 'usr_1', name: 'Alex Carter', email: 'alex@example.com', role: 'admin', status: 'active', joinedAt: '2023-01-15' },
-  { id: 'usr_2', name: 'Sarah Jenkins', email: 'sarah@example.com', role: 'editor', status: 'active', joinedAt: '2023-03-22' },
-  { id: 'usr_3', name: 'Mike Ross', email: 'mike@example.com', role: 'viewer', status: 'pending', joinedAt: '2023-05-10' },
-  { id: 'usr_4', name: 'Emily Blunt', email: 'emily@example.com', role: 'editor', status: 'banned', joinedAt: '2023-06-01' },
-];
-
-export const SEED_PRODUCTS: Product[] = [
-  { id: 'prod_1', name: 'ErgoChair Pro', category: 'Furniture', price: 450, stock: 12, status: 'in_stock' },
-  { id: 'prod_2', name: 'Standing Desk', category: 'Furniture', price: 600, stock: 3, status: 'low_stock' },
-  { id: 'prod_3', name: 'Monitor Arm', category: 'Accessories', price: 120, stock: 0, status: 'out_of_stock' },
-  { id: 'prod_4', name: 'Mechanical Keyboard', category: 'Electronics', price: 180, stock: 25, status: 'in_stock' },
-];
-
-export const SEED_INVOICES: Invoice[] = [
-  { id: 'inv_001', userId: 'usr_2', amount: 450.00, status: 'paid', date: '2023-10-01' },
-  { id: 'inv_002', userId: 'usr_1', amount: 1200.50, status: 'pending', date: '2023-10-05' },
-  { id: 'inv_003', userId: 'usr_3', amount: 180.00, status: 'overdue', date: '2023-09-15' },
-  { id: 'inv_004', userId: 'usr_2', amount: 600.00, status: 'paid', date: '2023-10-10' },
-];
-
-export const SEED_REVIEWS: Review[] = [
-  { id: 'rev_1', productId: 'prod_1', rating: 5, comment: 'Life changing comfort!', author: 'Alex Carter', date: '2023-09-01' },
-  { id: 'rev_2', productId: 'prod_4', rating: 4, comment: 'Clicky but loud.', author: 'Mike Ross', date: '2023-09-10' },
-  { id: 'rev_3', productId: 'prod_2', rating: 2, comment: 'Wobbles at max height.', author: 'Sarah Jenkins', date: '2023-09-12' },
-];
-
-export const SEED_LOGS: ActivityLog[] = [
-  { id: 'log_1', action: 'User Created', entity: 'User', user: 'System', timestamp: '2023-10-01T10:00:00Z' },
-  { id: 'log_2', action: 'Invoice Paid', entity: 'Invoice', user: 'Alex Carter', timestamp: '2023-10-02T14:30:00Z' },
-  { id: 'log_3', action: 'Stock Updated', entity: 'Product', user: 'Sarah Jenkins', timestamp: '2023-10-03T09:15:00Z' },
-];
-
-// --- REGISTRIES ---
-
-// 1. Data Registry (The Records)
-export const DATA_REGISTRY: Record<string, any[]> = {
-  users: SEED_USERS,
-  products: SEED_PRODUCTS,
-  invoices: SEED_INVOICES,
-  reviews: SEED_REVIEWS,
-  logs: SEED_LOGS,
-};
-
-// 2. Metadata Registry (The Schema/Definitions)
-export const RESOURCE_METADATA: Record<string, ResourceMeta> = {
-  users: {
-    name: 'Users',
-    fields: [
-      { key: 'name', label: 'Name', type: 'text', required: true },
-      { key: 'email', label: 'Email', type: 'email', required: true },
-      { key: 'role', label: 'Role', type: 'status' },
-      { key: 'status', label: 'Status', type: 'status' },
-      { key: 'joinedAt', label: 'Joined', type: 'date' },
-    ]
-  },
-  products: {
-    name: 'Products',
-    fields: [
-      { key: 'name', label: 'Product Name', type: 'text', required: true },
-      { key: 'category', label: 'Category', type: 'text' },
-      { key: 'price', label: 'Price', type: 'currency' },
-      { key: 'stock', label: 'Stock', type: 'number' },
-      { key: 'status', label: 'Availability', type: 'status' },
-    ]
-  },
-  invoices: {
-    name: 'Invoices',
-    fields: [
-      // ✅ FIX: Changed label from 'User ID' to 'User'
-      { key: 'userId', label: 'User', type: 'text', required: true },
-      { key: 'amount', label: 'Amount', type: 'currency' },
-      { key: 'status', label: 'Status', type: 'status' },
-      { key: 'date', label: 'Date', type: 'date' },
-    ]
-  },
-  reviews: {
-    name: 'Reviews',
-    fields: [
-      // ✅ FIX: Changed label from 'Product ID' to 'Product'
-      { key: 'productId', label: 'Product', type: 'text' },
-      { key: 'rating', label: 'Rating', type: 'number' },
-      { key: 'comment', label: 'Comment', type: 'text' },
-      { key: 'author', label: 'Author', type: 'text' },
-    ]
-  },
-  logs: {
-    name: 'Activity Logs',
-    fields: [
-      { key: 'action', label: 'Action', type: 'text' },
-      { key: 'entity', label: 'Entity', type: 'text' },
-      { key: 'user', label: 'User', type: 'text' },
-      { key: 'timestamp', label: 'Time', type: 'date' },
-    ]
-  }
-};
-
-// --- HELPERS ---
-
-export const getMockData = (id: string) => DATA_REGISTRY[id] || [];
-
-// ✅ Updated to return ResourceMeta or null (instead of never/null)
-export const getResourceMeta = (id: string): ResourceMeta | null => {
-  return RESOURCE_METADATA[id] || null;
-};
-</file>
-
-<file path="template/src/generated/hooks.ts">
-import { useSignal } from '../hooks/useSignal';
-
-export const useGeneratedSignals = () => {
-  
-  // 🟢 REAL: Connected to public MQTT test broker
-  const living_room_ac = useSignal('living_room_ac', {
-    initialValue: 72,
-    min: 60,
-    max: 90,
-    unit: '°F',
-    topic: 'ramme/test/temp' // <--- The magic link
+  const [signal, setSignal] = useState<Signal<T>>({
+    id: signalId,
+    value: initialValue as T,
+    unit: unit,
+    timestamp: Date.now(),
+    status: 'fresh',
+    max: max 
   });
 
-  // 🟠 MOCK: Simulation Mode
-  const living_room_hum = useSignal('living_room_hum', {
-    initialValue: 45,
-    min: 40,
-    max: 60,
-    unit: '%'
-  });
+  // --- REAL MODE: MQTT ---
+  useEffect(() => {
+    if (!topic || !isConnected) return;
+    subscribe(topic);
+    return () => unsubscribe(topic);
+  }, [topic, isConnected, subscribe, unsubscribe]);
 
-  const server_01 = useSignal('server_01', {
-    initialValue: 42,
-    min: 10,
-    max: 95,
-    unit: '%'
-  });
+  useEffect(() => {
+    if (!topic || !lastMessage[topic]) return;
 
-  const front_door_lock = useSignal('front_door_lock', {
-    initialValue: 'LOCKED',
-    unit: ''
-  });
+    const rawValue = lastMessage[topic];
+    let parsedValue: any = rawValue;
 
-  return {
-    living_room_ac,
-    living_room_hum,
-    server_01,
-    front_door_lock,
-  };
-};
+    // Auto-parse numbers and booleans
+    if (!isNaN(Number(rawValue))) parsedValue = Number(rawValue);
+    else if (rawValue.toLowerCase() === 'true' || rawValue === 'on') parsedValue = true;
+    else if (rawValue.toLowerCase() === 'false' || rawValue === 'off') parsedValue = false;
+
+    setSignal(prev => ({
+        ...prev,
+        value: parsedValue,
+        timestamp: Date.now(),
+        status: 'fresh'
+    }));
+  }, [lastMessage, topic]);
+
+  // --- MOCK MODE: SIMULATION ---
+  useEffect(() => {
+    if (topic) return; // Disable mock if topic exists
+
+    const timer = setInterval(() => {
+      setSignal(prev => {
+        let newValue: any = prev.value;
+        if (typeof prev.value === 'number') {
+            const variance = (Math.random() - 0.5) * 2; 
+            let nextNum = prev.value + variance;
+            if (min !== undefined) nextNum = Math.max(min, nextNum);
+            if (max !== undefined) nextNum = Math.min(max, nextNum);
+            newValue = Number(nextNum.toFixed(1));
+        }
+        return { ...prev, value: newValue, timestamp: Date.now(), status: 'fresh' };
+      });
+    }, interval); 
+
+    return () => clearInterval(timer);
+  }, [topic, min, max, interval]);
+
+  return signal;
+}
 </file>
 
 <file path="template/src/pages/AiChat.tsx">
@@ -5747,172 +5626,102 @@ const AiChat: React.FC = () => {
 export default AiChat;
 </file>
 
-<file path="template/src/templates/dashboard/dashboard.sitemap.ts">
-import { type SitemapEntry } from '../../core/sitemap-entry';
-import { appManifest } from '../../config/app.manifest';
-import Dashboard from '../../pages/Dashboard';
-import AiChat from '../../pages/AiChat';
+<file path="template/src/pages/DynamicPage.tsx">
+import React from 'react';
+import { PageHeader, Alert, Button, Icon } from '@ramme-io/ui';
+import { appManifest } from '../config/app.manifest';
+// Reuse the GhostOverlay for structure visualization
+import { GhostOverlay } from '../components/dev/GhostOverlay';
+// Import the Worker Bee
+import { DynamicBlock } from '../components/DynamicBlock';
+// Import the Hook to control the overlay
+import { useDevTools } from '../hooks/useDevTools';
 
-export const dashboardSitemap: SitemapEntry[] = [];
-
-// A. Dynamic Pages from Manifest
-if (appManifest.pages) {
-  appManifest.pages.forEach(page => {
-    const isDashboard = page.slug === 'dashboard';
-    
-    dashboardSitemap.push({
-      id: page.id,
-      title: page.title,
-      // Map root to Dashboard, others to their slug
-      path: isDashboard ? '' : page.slug,
-      icon: isDashboard ? 'layout-dashboard' : 'file-text',
-      component: Dashboard, // Map everything to the Universal Renderer
-    });
-  });
+interface DynamicPageProps {
+  pageId: string;
 }
 
-// B. Dynamic Modules
-if (appManifest.modules?.includes('ai-chat')) {
-  dashboardSitemap.push({
-    id: 'ai-chat',
-    path: 'ai-chat',
-    title: 'AI Assistant',
-    icon: 'bot',
-    component: AiChat,
-  });
-}
-</file>
+export const DynamicPage: React.FC<DynamicPageProps> = ({ pageId }) => {
+  // 1. Initialize DevTools
+  const { isGhostMode, toggleGhostMode } = useDevTools();
 
-<file path="template/src/templates/dashboard/DashboardLayout.tsx">
-import React, { useState } from 'react'; // <-- Added useState
-import { Outlet, NavLink } from 'react-router-dom';
-import {
-  Sidebar,
-  SidebarProvider,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarMenu,
-  SidebarMenuItem,
-  useSidebar,
-  Button,
-  Icon,
-  ChatFAB, // <-- NEW: Import FAB
-} from '@ramme-io/ui';
-import { dashboardSitemap } from './dashboard.sitemap';
-import { SitemapProvider } from '../../contexts/SitemapContext';
-import PageTitleUpdater from '../../components/PageTitleUpdater';
-import AppHeader from '../../components/AppHeader';
-import { AIChatWidget } from '../../components/AIChatWidget'; // <-- NEW: Import Widget
-import { useWorkflowEngine } from '../../hooks/useWorkflowEngine';
+  // 2. Look up the page definition
+  const pageConfig = (appManifest as any).pages?.find((p: any) => p.id === pageId);
 
-// NavLink wrapper - Correct
-const SidebarNavLink = React.forwardRef<HTMLAnchorElement, any>(
-  ({ end, href, ...props }, ref) => {
-    return <NavLink ref={ref} to={href || ''} {...props} end={end} />;
-  },
-);
-SidebarNavLink.displayName = 'SidebarNavLink';
+  if (!pageConfig) {
+    return (
+      <div className="p-8">
+        <Alert variant="danger" title="Page Not Found">
+          The manifest does not contain a page with ID: <code>{pageId}</code>.
+        </Alert>
+      </div>
+    );
+  }
 
-// Sidebar Content Component
-const AppSidebarContent: React.FC = () => {
-  const { isOpen, toggle } = useSidebar();
   return (
-    <>
-      <SidebarHeader>
-        <div className="flex items-center justify-end w-full h-full">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggle}
-            className="hidden md:flex mr-1"
+    <div className="space-y-8 fade-in p-6">
+      <PageHeader 
+        title={pageConfig.title} 
+        description={pageConfig.description}
+        actions={
+          <Button 
+            variant={isGhostMode ? 'accent' : 'outline'} 
+            size="sm"
+            onClick={toggleGhostMode}
+            title="Toggle Ghost Mode (Ctrl+Shift+G)"
           >
-            <Icon name={isOpen ? 'panel-left-close' : 'panel-left-open'} />
+            <Icon name={isGhostMode ? 'eye' : 'eye-off'} className="mr-2" />
+            {isGhostMode ? 'Ghost Mode: ON' : 'Dev Tools'}
           </Button>
-        </div>
-      </SidebarHeader>
+        }
+      />
 
-      <SidebarContent>
-        <SidebarMenu>
-          {dashboardSitemap.map((item) => (
-            <React.Fragment key={item.id}>
-              <SidebarMenuItem
-                as={SidebarNavLink}
-                href={item.path ? `/dashboard/${item.path}` : '/dashboard'}
-                end
-                icon={item.icon ? <Icon name={item.icon} /> : undefined}
-                tooltip={item.title}
-              >
-                {item.title}
-              </SidebarMenuItem>
-              {item.children &&
-                isOpen &&
-                item.children.map((child) => (
-                  <SidebarMenuItem
-                    key={child.id}
-                    as={SidebarNavLink}
-                    href={`/dashboard/${item.path}/${child.path}`}
-                    end
-                    icon={child.icon ? <Icon name={child.icon} /> : undefined}
-                    tooltip={child.title}
-                    className="pl-10" 
-                  >
-                    {child.title}
-                  </SidebarMenuItem>
-                ))}
-            </React.Fragment>
-          ))}
-        </SidebarMenu>
-      </SidebarContent>
-
-      <SidebarFooter />
-    </>
-  );
-};
-
-// Main Layout Component
-const DashboardLayout: React.FC = () => {
-  // 1. STATE: Track if the chat window is open
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  useWorkflowEngine();
-
-  return (
-    <SitemapProvider value={dashboardSitemap}>
-      <PageTitleUpdater />
-      <SidebarProvider>
-        <div className="flex h-screen bg-background text-foreground relative">
-          <Sidebar>
-            <AppSidebarContent />
-          </Sidebar>
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <AppHeader />
-            <main className="flex-1 overflow-y-auto p-8">
-              <Outlet />
-            </main>
-          </div>
-
-          {/* --- AI COPILOT SECTION --- */}
+      {/* 4. Render Sections */}
+      {pageConfig.sections.map((section: any) => (
+        <div key={section.id} className="space-y-4">
+          {section.title && <h3 className="text-xl font-semibold">{section.title}</h3>}
           
-          {/* 2. The Widget: Only renders when open */}
-          {isChatOpen && (
-            <AIChatWidget onClose={() => setIsChatOpen(false)} />
-          )}
+          <div 
+            className="grid gap-6"
+            style={{ 
+              // ⚡️ IMPROVEMENT: Default to 1 column (Full Width) instead of 3.
+              // This fixes the "narrow table" issue immediately.
+              gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` 
+            }}
+          >
+            {section.blocks.map((block: any) => {
+              // ⚡️ IMPROVEMENT: Calculate Spanning
+              // Allows a block to stretch across multiple columns if needed.
+              const colSpan = block.layout?.colSpan || 1;
+              const rowSpan = block.layout?.rowSpan || 1;
 
-          {/* 3. The Button: Fixed to bottom-right */}
-          <div className="fixed bottom-6 right-6 z-50">
-            <ChatFAB 
-              onClick={() => setIsChatOpen(!isChatOpen)} 
-              tooltipContent={isChatOpen ? "Close Assistant" : "Open Bodewell AI"}
-            />
+              return (
+                <div 
+                  key={block.id}
+                  style={{ 
+                    gridColumn: `span ${colSpan}`,
+                    gridRow: `span ${rowSpan}`
+                  }}
+                >
+                   <GhostOverlay 
+                     isActive={isGhostMode}
+                     componentId={block.id} 
+                     componentType={block.type}
+                     signalId={block.props.signalId}
+                   >
+                     <DynamicBlock block={block} />
+                   </GhostOverlay>
+                </div>
+              );
+            })}
           </div>
-
         </div>
-      </SidebarProvider>
-    </SitemapProvider>
+      ))}
+    </div>
   );
 };
 
-export default DashboardLayout;
+export default DynamicPage;
 </file>
 
 <file path="template/src/templates/settings/SettingsLayout.tsx">
@@ -6116,6 +5925,64 @@ export interface Signal<T = any> {
 export type SignalMap = Record<string, Signal>;
 </file>
 
+<file path="template/src/App.tsx">
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { generateRoutes } from './core/route-generator';
+import { useEffect } from 'react';
+
+// --- 1. IMPORT ALL THREE TEMPLATES ---
+import DashboardLayout from './templates/dashboard/DashboardLayout';
+import { dashboardSitemap } from './templates/dashboard/dashboard.sitemap';
+import DocsLayout from './templates/docs/DocsLayout';
+import { docsSitemap } from './templates/docs/docs.sitemap';
+import SettingsLayout from './templates/settings/SettingsLayout';
+import { settingsSitemap } from './templates/settings/settings.sitemap';
+
+// Other Imports
+import ProtectedRoute from './components/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
+import NotFound from './pages/styleguide/NotFound';
+
+// --- 2. IMPORT THE SEEDER ---
+import { initializeDataLake } from './core/data-seeder';
+
+function App() {
+  
+  // ✅ 3. TRIGGER DATA SEEDING ON MOUNT
+  useEffect(() => {
+    initializeDataLake();
+  }, []);
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<ProtectedRoute />}>
+        {/* ✅ FIX: Redirect root to the new Welcome page */}
+        <Route path="/" element={<Navigate to="/dashboard/welcome" replace />} />
+
+        {/* Dashboard Template Routes */}
+        <Route path="/dashboard/*" element={<DashboardLayout />}>
+          {generateRoutes(dashboardSitemap)}
+        </Route>
+
+        {/* Docs Template Routes */}
+        <Route path="/docs/*" element={<DocsLayout />}>
+          {generateRoutes(docsSitemap)}
+        </Route>
+
+        {/* Settings Layout Route */}
+        <Route path="/settings/*" element={<SettingsLayout />}>
+          {generateRoutes(settingsSitemap)}
+        </Route>
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+export default App;
+</file>
+
 <file path="template/src/main.tsx">
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -6145,6 +6012,589 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+</file>
+
+<file path="template/src/components/DynamicBlock.tsx">
+import React from 'react';
+import { getComponent } from '../core/component-registry';
+// @ts-ignore
+import { useGeneratedSignals } from '../generated/hooks';
+import { getMockData } from '../data/mockData';
+
+const mapSignalStatus = (status: string): string => {
+  switch (status) {
+    case 'fresh': return 'online';
+    case 'stale': return 'warning';
+    case 'disconnected': return 'offline';
+    case 'error': return 'error';
+    default: return 'offline';
+  }
+};
+
+export const DynamicBlock: React.FC<any> = ({ block }) => {
+  const Component = getComponent(block.type);
+  const signals = useGeneratedSignals();
+
+  const { signalId, dataId, ...staticProps } = block.props;
+  
+  const dynamicProps: Record<string, any> = { 
+    ...staticProps,
+    dataId,
+    signalId 
+  };
+
+  // --- DATA INJECTION ---
+  if (dataId) {
+    const resolvedData = getMockData(dataId);
+    dynamicProps.data = resolvedData || [];
+    dynamicProps.rowData = resolvedData || [];
+  }
+
+  // --- SIGNAL INJECTION ---
+  if (signalId && signals && signalId in signals) {
+    // @ts-ignore
+    const signalState = signals[signalId];
+
+    if (signalState) {
+      // ✅ FIX: Handle both Raw Values (Legacy) and Signal Objects (New)
+      // If it's an object with a 'value' property, use that. Otherwise use it directly.
+      const rawValue = (typeof signalState === 'object' && 'value' in signalState) 
+        ? signalState.value 
+        : signalState;
+
+      const status = (typeof signalState === 'object' && 'status' in signalState)
+        ? signalState.status
+        : 'fresh'; // Default for raw values
+
+      dynamicProps.value = typeof rawValue === 'number' ? rawValue : String(rawValue);
+      dynamicProps.status = mapSignalStatus(status);
+    } else {
+      dynamicProps.status = mapSignalStatus('disconnected');
+    }
+  }
+
+  return <Component key={block.id} {...dynamicProps} />;
+};
+</file>
+
+<file path="template/src/data/mockData.ts">
+/**
+ * @file src/data/mockData.ts
+ * @description The "Golden Copy" of seed data. 
+ * These records are injected into localStorage when the app first launches.
+ */
+
+// ✅ 1. Interface for the Metadata (Schema)
+export interface ResourceMeta {
+  name: string;
+  fields: {
+    key: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    defaultValue?: any;
+    description?: string;
+  }[];
+}
+
+// --- DATA INTERFACES ---
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'editor' | 'viewer';
+  status: 'active' | 'pending' | 'banned';
+  avatar?: string;
+  joinedAt: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  status: 'in_stock' | 'low_stock' | 'out_of_stock';
+}
+
+export interface Invoice {
+  id: string;
+  userId: string; // Foreign Key -> User
+  amount: number;
+  status: 'paid' | 'pending' | 'overdue';
+  date: string;
+}
+
+export interface Review {
+  id: string;
+  productId: string; // Foreign Key -> Product
+  rating: number;
+  comment: string;
+  author: string;
+  date: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  action: string;
+  entity: string;
+  timestamp: string;
+  user: string;
+}
+
+// --- SEED DATA ---
+
+export const SEED_USERS: User[] = [
+  { id: 'usr_1', name: 'Alex Carter', email: 'alex@example.com', role: 'admin', status: 'active', joinedAt: '2023-01-15' },
+  { id: 'usr_2', name: 'Sarah Jenkins', email: 'sarah@example.com', role: 'editor', status: 'active', joinedAt: '2023-03-22' },
+  { id: 'usr_3', name: 'Mike Ross', email: 'mike@example.com', role: 'viewer', status: 'pending', joinedAt: '2023-05-10' },
+  { id: 'usr_4', name: 'Emily Blunt', email: 'emily@example.com', role: 'editor', status: 'banned', joinedAt: '2023-06-01' },
+];
+
+export const SEED_PRODUCTS: Product[] = [
+  { id: 'prod_1', name: 'ErgoChair Pro', category: 'Furniture', price: 450, stock: 12, status: 'in_stock' },
+  { id: 'prod_2', name: 'Standing Desk', category: 'Furniture', price: 600, stock: 3, status: 'low_stock' },
+  { id: 'prod_3', name: 'Monitor Arm', category: 'Accessories', price: 120, stock: 0, status: 'out_of_stock' },
+  { id: 'prod_4', name: 'Mechanical Keyboard', category: 'Electronics', price: 180, stock: 25, status: 'in_stock' },
+];
+
+export const SEED_INVOICES: Invoice[] = [
+  { id: 'inv_001', userId: 'usr_2', amount: 450.00, status: 'paid', date: '2023-10-01' },
+  { id: 'inv_002', userId: 'usr_1', amount: 1200.50, status: 'pending', date: '2023-10-05' },
+  { id: 'inv_003', userId: 'usr_3', amount: 180.00, status: 'overdue', date: '2023-09-15' },
+  { id: 'inv_004', userId: 'usr_2', amount: 600.00, status: 'paid', date: '2023-10-10' },
+];
+
+export const SEED_REVIEWS: Review[] = [
+  { id: 'rev_1', productId: 'prod_1', rating: 5, comment: 'Life changing comfort!', author: 'Alex Carter', date: '2023-09-01' },
+  { id: 'rev_2', productId: 'prod_4', rating: 4, comment: 'Clicky but loud.', author: 'Mike Ross', date: '2023-09-10' },
+  { id: 'rev_3', productId: 'prod_2', rating: 2, comment: 'Wobbles at max height.', author: 'Sarah Jenkins', date: '2023-09-12' },
+];
+
+export const SEED_LOGS: ActivityLog[] = [
+  { id: 'log_1', action: 'User Created', entity: 'User', user: 'System', timestamp: '2023-10-01T10:00:00Z' },
+  { id: 'log_2', action: 'Invoice Paid', entity: 'Invoice', user: 'Alex Carter', timestamp: '2023-10-02T14:30:00Z' },
+  { id: 'log_3', action: 'Stock Updated', entity: 'Product', user: 'Sarah Jenkins', timestamp: '2023-10-03T09:15:00Z' },
+];
+
+// --- REGISTRIES ---
+
+// 1. Data Registry (The Records)
+export const DATA_REGISTRY: Record<string, any[]> = {
+  users: SEED_USERS,
+  products: SEED_PRODUCTS,
+  invoices: SEED_INVOICES,
+  reviews: SEED_REVIEWS,
+  logs: SEED_LOGS,
+};
+
+// 2. Metadata Registry (The Schema/Definitions)
+export const RESOURCE_METADATA: Record<string, ResourceMeta> = {
+  users: {
+    name: 'Users',
+    fields: [
+      { key: 'name', label: 'Name', type: 'text', required: true },
+      { key: 'email', label: 'Email', type: 'email', required: true },
+      { key: 'role', label: 'Role', type: 'status' },
+      { key: 'status', label: 'Status', type: 'status' },
+      { key: 'joinedAt', label: 'Joined', type: 'date' },
+    ]
+  },
+  products: {
+    name: 'Products',
+    fields: [
+      { key: 'name', label: 'Product Name', type: 'text', required: true },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'price', label: 'Price', type: 'currency' },
+      { key: 'stock', label: 'Stock', type: 'number' },
+      { key: 'status', label: 'Availability', type: 'status' },
+    ]
+  },
+  invoices: {
+    name: 'Invoices',
+    fields: [
+      // ✅ FIX: Changed label from 'User ID' to 'User'
+      { key: 'userId', label: 'User', type: 'text', required: true },
+      { key: 'amount', label: 'Amount', type: 'currency' },
+      { key: 'status', label: 'Status', type: 'status' },
+      { key: 'date', label: 'Date', type: 'date' },
+    ]
+  },
+  reviews: {
+    name: 'Reviews',
+    fields: [
+      // ✅ FIX: Changed label from 'Product ID' to 'Product'
+      { key: 'productId', label: 'Product', type: 'text' },
+      { key: 'rating', label: 'Rating', type: 'number' },
+      { key: 'comment', label: 'Comment', type: 'text' },
+      { key: 'author', label: 'Author', type: 'text' },
+    ]
+  },
+  logs: {
+    name: 'Activity Logs',
+    fields: [
+      { key: 'action', label: 'Action', type: 'text' },
+      { key: 'entity', label: 'Entity', type: 'text' },
+      { key: 'user', label: 'User', type: 'text' },
+      { key: 'timestamp', label: 'Time', type: 'date' },
+    ]
+  }
+};
+
+// --- HELPERS ---
+
+export const getMockData = (id: string) => DATA_REGISTRY[id] || [];
+
+// ✅ Updated to return ResourceMeta or null (instead of never/null)
+export const getResourceMeta = (id: string): ResourceMeta | null => {
+  return RESOURCE_METADATA[id] || null;
+};
+</file>
+
+<file path="template/src/generated/hooks.ts">
+import { create } from 'zustand';
+import { useEffect } from 'react';
+
+// --- 1. SIGNAL STORE ---
+export interface SignalValue {
+  value: any;
+  timestamp: number;
+}
+
+interface SignalStore {
+  signals: Record<string, SignalValue>;
+  updateSignal: (id: string, value: any) => void;
+  updateSignals: (updates: Record<string, any>) => void;
+}
+
+// Initial State matches app.manifest.ts
+const initialState = {
+  living_room_ac: { value: 72, timestamp: Date.now() },
+  living_room_hum: { value: 45, timestamp: Date.now() },
+  server_01: { value: 42, timestamp: Date.now() },
+  front_door_lock: { value: 'LOCKED', timestamp: Date.now() }
+};
+
+export const useSignalStore = create<SignalStore>((set) => ({
+  signals: initialState,
+  
+  updateSignal: (id, value) => set((state) => ({
+    signals: {
+      ...state.signals,
+      [id]: { value, timestamp: Date.now() }
+    }
+  })),
+
+  updateSignals: (updates) => set((state) => {
+    const newSignals = { ...state.signals };
+    Object.entries(updates).forEach(([id, val]) => {
+      newSignals[id] = { value: val, timestamp: Date.now() };
+    });
+    return { signals: newSignals };
+  })
+}));
+
+export const useGeneratedSignals = () => {
+  return useSignalStore((state) => state.signals);
+};
+
+// --- 2. SIMULATION ENGINE ---
+export const useSimulation = () => {
+  const { updateSignals } = useSignalStore();
+
+  useEffect(() => {
+    console.log("[System] Simulation Started");
+    const interval = setInterval(() => {
+      // Simulate random fluctuations for sensors
+      const updates: Record<string, any> = {};
+      
+      // Randomize values slightly
+      updates['living_room_ac'] = Number((72 + (Math.random() * 4 - 2)).toFixed(1));
+      updates['living_room_hum'] = Number((45 + (Math.random() * 6 - 3)).toFixed(1));
+      updates['server_01'] = Math.floor(Math.random() * 100);
+      
+      updateSignals(updates);
+    }, 2000); // Update every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [updateSignals]);
+};
+</file>
+
+<file path="template/src/templates/dashboard/dashboard.sitemap.ts">
+import { type SitemapEntry } from '../../core/sitemap-entry';
+import { appManifest } from '../../config/app.manifest';
+import Dashboard from '../../pages/Dashboard';
+import AiChat from '../../pages/AiChat';
+import Welcome from '../../pages/Welcome'; // ✅ Import the new page
+
+export const dashboardSitemap: SitemapEntry[] = [
+  // ✅ 1. The New Landing Page
+  {
+    id: 'welcome',
+    path: 'welcome',
+    title: 'Start Here',
+    icon: 'rocket',
+    component: Welcome,
+  },
+];
+
+// A. Dynamic Pages from Manifest
+if (appManifest.pages) {
+  appManifest.pages.forEach(page => {
+    const isDashboard = page.slug === 'dashboard';
+    
+    dashboardSitemap.push({
+      id: page.id,
+      title: page.title,
+      // ✅ FIX: Map the main dashboard to 'app' instead of root ''
+      // This prevents conflict with the layout root
+      path: isDashboard ? 'app' : page.slug,
+      icon: isDashboard ? 'layout-dashboard' : 'file-text',
+      component: Dashboard,
+    });
+  });
+}
+
+// B. Dynamic Modules
+if (appManifest.modules?.includes('ai-chat')) {
+  dashboardSitemap.push({
+    id: 'ai-chat',
+    path: 'ai-chat',
+    title: 'AI Assistant',
+    icon: 'bot',
+    component: AiChat,
+  });
+}
+</file>
+
+<file path="template/src/templates/dashboard/DashboardLayout.tsx">
+import React, { useState } from 'react'; // <-- Added useState
+import { Outlet, NavLink } from 'react-router-dom';
+import {
+  Sidebar,
+  SidebarProvider,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  useSidebar,
+  Button,
+  Icon,
+  ChatFAB, // <-- NEW: Import FAB
+} from '@ramme-io/ui';
+import { dashboardSitemap } from './dashboard.sitemap';
+import { SitemapProvider } from '../../contexts/SitemapContext';
+import PageTitleUpdater from '../../components/PageTitleUpdater';
+import AppHeader from '../../components/AppHeader';
+import { AIChatWidget } from '../../components/AIChatWidget'; // <-- NEW: Import Widget
+import { useWorkflowEngine } from '../../hooks/useWorkflowEngine';
+
+// NavLink wrapper - Correct
+const SidebarNavLink = React.forwardRef<HTMLAnchorElement, any>(
+  ({ end, href, ...props }, ref) => {
+    return <NavLink ref={ref} to={href || ''} {...props} end={end} />;
+  },
+);
+SidebarNavLink.displayName = 'SidebarNavLink';
+
+// Sidebar Content Component
+const AppSidebarContent: React.FC = () => {
+  const { isOpen, toggle } = useSidebar();
+  return (
+    <>
+      <SidebarHeader>
+        <div className="flex items-center justify-end w-full h-full">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggle}
+            className="hidden md:flex mr-1"
+          >
+            <Icon name={isOpen ? 'panel-left-close' : 'panel-left-open'} />
+          </Button>
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarMenu>
+          {dashboardSitemap.map((item) => (
+            <React.Fragment key={item.id}>
+              <SidebarMenuItem
+                as={SidebarNavLink}
+                href={item.path ? `/dashboard/${item.path}` : '/dashboard'}
+                end
+                icon={item.icon ? <Icon name={item.icon} /> : undefined}
+                tooltip={item.title}
+              >
+                {item.title}
+              </SidebarMenuItem>
+              {item.children &&
+                isOpen &&
+                item.children.map((child) => (
+                  <SidebarMenuItem
+                    key={child.id}
+                    as={SidebarNavLink}
+                    href={`/dashboard/${item.path}/${child.path}`}
+                    end
+                    icon={child.icon ? <Icon name={child.icon} /> : undefined}
+                    tooltip={child.title}
+                    className="pl-10" 
+                  >
+                    {child.title}
+                  </SidebarMenuItem>
+                ))}
+            </React.Fragment>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+
+      <SidebarFooter />
+    </>
+  );
+};
+
+// Main Layout Component
+const DashboardLayout: React.FC = () => {
+  // 1. STATE: Track if the chat window is open
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  useWorkflowEngine();
+
+  return (
+    <SitemapProvider value={dashboardSitemap}>
+      <PageTitleUpdater />
+      <SidebarProvider>
+        <div className="flex h-screen bg-background text-foreground relative">
+          <Sidebar>
+            <AppSidebarContent />
+          </Sidebar>
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <AppHeader />
+            <main className="flex-1 overflow-y-auto p-8">
+              <Outlet />
+            </main>
+          </div>
+
+          {/* --- AI COPILOT SECTION --- */}
+          
+          {/* 2. The Widget: Only renders when open */}
+          {isChatOpen && (
+            <AIChatWidget onClose={() => setIsChatOpen(false)} />
+          )}
+
+          {/* 3. The Button: Fixed to bottom-right */}
+          <div className="fixed bottom-6 right-6 z-50">
+            <ChatFAB 
+              onClick={() => setIsChatOpen(!isChatOpen)} 
+              tooltipContent={isChatOpen ? "Close Assistant" : "Open Bodewell AI"}
+            />
+          </div>
+
+        </div>
+      </SidebarProvider>
+    </SitemapProvider>
+  );
+};
+
+export default DashboardLayout;
+</file>
+
+<file path="template/DESIGNER_GUIDE.md">
+## 🚀 Quick Start for Designers
+
+You don't need to be a coding wizard to use this. Just follow these 3 steps:
+
+### 1. Setup (Do this once)
+You need **Node.js** installed on your computer.
+- Open your terminal (Command Prompt or Terminal app).
+- Type `node -v` to see if you have it. If not, download it from [nodejs.org](https://nodejs.org).
+
+### 2. Create your Project
+Run this magic command in your terminal:
+
+```bash
+npm create @ramme-io/app@latest
+```
+
+It will ask you for a project name (e.g., my-smart-home). Type it and hit Enter.
+
+---
+
+## Run it!
+
+You will be prompted to name your project.
+
+**1. Enter the project directory**
+```bash
+cd my-new-project
+```
+
+**2. Install dependencies**
+```bash
+pnpm install
+# or npm install
+```
+
+**3. Start the dev server**
+```bash
+pnpm run dev
+```
+
+Your prototype is now running locally at `http://localhost:5173`.
+
+---
+</file>
+
+<file path="template/README.md">
+# Ramme App Starter
+
+Welcome to your new **Ramme** application!
+This project was scaffolded using `create-ramme-app`.
+
+## 🚦 Getting Started
+
+**Install dependencies:**
+```bash
+npm install
+# or
+pnpm install
+# or
+yarn
+```
+
+**Start the development server:**
+```bash
+npm run dev
+```
+
+**Open your browser:**
+Visit `http://localhost:5173` to see your app.
+
+## 🏗️ Project Structure
+
+**`src/config/app.manifest.ts`**: The "Brain" of your app. Define your app's title, description, and high-level settings here.
+**`src/config/sitemap.ts`**: The "Skeleton." Define your pages and navigation structure here.
+**`src/core/component-registry.tsx`**: Maps JSON component names (from the builder) to actual React components.
+**`src/pages`**: Your actual page components.
+**`src/data`**: Mock data generators and seed files.
+
+## 🎨 Customization
+
+### changing the Theme
+Go to `src/index.css` or `tailwind.config.js` to update your brand colors.
+
+### Adding New Pages
+1.  Create a new component in `src/pages`.
+2.  Register it in your `sitemap.ts` (or the relevant template sitemap).
+3.  The `RouteGenerator` will automatically handle the routing!
+
+## 📚 Learn More
+
+- [Ramme UI Documentation](https://ramme.io/docs)
+- [Vite Documentation](https://vitejs.dev/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/)
 </file>
 
 <file path="template/src/config/app.manifest.ts">
@@ -6338,6 +6788,39 @@ export const EntitySchema = z.object({
 });
 export type EntityDefinition = z.infer<typeof EntitySchema>;
 
+// ------------------------------------------------------------------
+// ✅ NEW: LOGIC & WORKFLOW DEFINITIONS
+// ------------------------------------------------------------------
+
+export const TriggerSchema = z.object({
+  id: z.string(),
+  type: z.enum(['signal_change', 'manual_action', 'schedule', 'webhook']),
+  config: z.record(z.string(), z.any()), 
+});
+
+export const ActionSchema = z.object({
+  id: z.string(),
+  type: z.enum([
+    'update_resource', 
+    'send_notification', 
+    'mqtt_publish', 
+    'api_call', 
+    'navigate', 
+    'agent_task'
+  ]),
+  config: z.record(z.string(), z.any()),
+});
+
+export const WorkflowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  active: z.boolean().default(true),
+  trigger: TriggerSchema,
+  actions: z.array(ActionSchema),
+});
+export type WorkflowDefinition = z.infer<typeof WorkflowSchema>;
+export type ActionDefinition = z.infer<typeof ActionSchema>;
+
 
 // ------------------------------------------------------------------
 // 3. UI LAYOUT DEFINITIONS (Presentation Layer)
@@ -6346,7 +6829,6 @@ export type EntityDefinition = z.infer<typeof EntitySchema>;
 export const BlockSchema = z.object({
   id: z.string(),
   type: z.string(),
-  // ✅ FIX: Explicitly define Key and Value types
   props: z.record(z.string(), z.any()), 
   layout: z.object({
     colSpan: z.number().optional(),
@@ -6383,7 +6865,7 @@ export const AppSpecificationSchema = z.object({
     version: z.string(),
     description: z.string().optional(),
     author: z.string().optional(),
-    createdAt: z.string().optional(), // <--- ADD THIS LINE
+    createdAt: z.string().optional(),
   }),
   
   config: z.object({
@@ -6398,6 +6880,8 @@ export const AppSpecificationSchema = z.object({
   domain: z.object({
     signals: z.array(SignalSchema),
     entities: z.array(EntitySchema),
+    // ✅ ADDED WORKFLOWS HERE
+    workflows: z.array(WorkflowSchema).optional(),
   }),
 
   pages: z.array(PageSchema).optional(),
@@ -6406,163 +6890,46 @@ export const AppSpecificationSchema = z.object({
 export type AppSpecification = z.infer<typeof AppSpecificationSchema>;
 </file>
 
-<file path="template/DESIGNER_GUIDE.md">
-## 🚀 Quick Start for Designers
-
-You don't need to be a coding wizard to use this. Just follow these 3 steps:
-
-### 1. Setup (Do this once)
-You need **Node.js** installed on your computer.
-- Open your terminal (Command Prompt or Terminal app).
-- Type `node -v` to see if you have it. If not, download it from [nodejs.org](https://nodejs.org).
-
-### 2. Create your Project
-Run this magic command in your terminal:
-
-```bash
-npm create @ramme-io/app@latest
-```
-
-It will ask you for a project name (e.g., my-smart-home). Type it and hit Enter.
-
----
-
-## Run it!
-
-You will be prompted to name your project.
-
-**1. Enter the project directory**
-```bash
-cd my-new-project
-```
-
-**2. Install dependencies**
-```bash
-pnpm install
-# or npm install
-```
-
-**3. Start the dev server**
-```bash
-pnpm run dev
-```
-
-Your prototype is now running locally at `http://localhost:5173`.
-
----
-</file>
-
-<file path="template/README.md">
-# Ramme App Starter
-
-Welcome to your new **Ramme** application!
-This project was scaffolded using `create-ramme-app`.
-
-## 🚦 Getting Started
-
-**Install dependencies:**
-```bash
-npm install
-# or
-pnpm install
-# or
-yarn
-```
-
-**Start the development server:**
-```bash
-npm run dev
-```
-
-**Open your browser:**
-Visit `http://localhost:5173` to see your app.
-
-## 🏗️ Project Structure
-
-**`src/config/app.manifest.ts`**: The "Brain" of your app. Define your app's title, description, and high-level settings here.
-**`src/config/sitemap.ts`**: The "Skeleton." Define your pages and navigation structure here.
-**`src/core/component-registry.tsx`**: Maps JSON component names (from the builder) to actual React components.
-**`src/pages`**: Your actual page components.
-**`src/data`**: Mock data generators and seed files.
-
-## 🎨 Customization
-
-### changing the Theme
-Go to `src/index.css` or `tailwind.config.js` to update your brand colors.
-
-### Adding New Pages
-1.  Create a new component in `src/pages`.
-2.  Register it in your `sitemap.ts` (or the relevant template sitemap).
-3.  The `RouteGenerator` will automatically handle the routing!
-
-## 📚 Learn More
-
-- [Ramme UI Documentation](https://ramme.io/docs)
-- [Vite Documentation](https://vitejs.dev/)
-- [Tailwind CSS Documentation](https://tailwindcss.com/)
-</file>
-
-<file path="template/src/pages/Dashboard.tsx">
-import React from 'react';
-import { useLocation } from 'react-router-dom';
-import { PageHeader, Alert } from '@ramme-io/ui';
-import { appManifest } from '../config/app.manifest';
-import { DynamicBlock } from '../components/DynamicBlock';
-
-const Dashboard: React.FC = () => {
-  const location = useLocation();
-  
-  // 1. Determine current slug from URL
-  const pathParts = location.pathname.split('/').filter(Boolean);
-  // If path is root or /dashboard, slug is 'dashboard', else take the last part
-  const currentSlug = pathParts.length > 1 ? pathParts[pathParts.length - 1] : 'dashboard';
-
-  // 2. Find the matching Page Definition
-  const pageDef = appManifest.pages?.find(p => p.slug === currentSlug) 
-    || appManifest.pages?.[0];
-
-  if (!pageDef) {
-    return (
-      <div className="p-8">
-        <Alert variant="warning" title="Page Not Found">
-          Could not find a definition for slug: <code>{currentSlug}</code>
-        </Alert>
-      </div>
-    );
+<file path="template/package.json">
+{
+  "name": "ramme-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ramme-io/ui": "^1.1.5",
+    "mqtt": "^5.3.5",
+    "zustand": "^4.5.0",
+    "ag-grid-community": "^31.3.1",
+    "ag-grid-enterprise": "^31.3.1",
+    "ag-grid-react": "^31.3.1",
+    "framer-motion": "^11.0.0",
+    "fs-extra": "^11.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.0",
+    "react-resizable-panels": "^2.0.9",
+    "ai": "^3.0.0",
+    "@ai-sdk/google": "^0.0.10",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.2.0",
+    "vite": "^5.2.0"
   }
-
-  return (
-    <div className="space-y-8 relative">
-      <PageHeader
-        title={pageDef.title}
-        description={pageDef.description}
-      />
-
-      {pageDef.sections.map((section) => (
-        <div key={section.id} className="relative">
-          {section.title && (
-            <h3 className="text-lg font-semibold mb-4 text-foreground">
-              {section.title}
-            </h3>
-          )}
-          
-          <div 
-            className="grid gap-6"
-            style={{ 
-              gridTemplateColumns: `repeat(${section.layout?.columns || 3}, minmax(300px, 1fr))` 
-            }}
-          >
-            {section.blocks.map((block) => (
-              <DynamicBlock key={block.id} block={block} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-export default Dashboard;
+}
 </file>
 
 <file path="README.md">
@@ -6634,6 +7001,69 @@ Copyright © 2025 Excesspool Limited Liability Company.
 This project is licensed under the [MIT License](LICENSE).
 </file>
 
+<file path="template/src/pages/Dashboard.tsx">
+import React from 'react';
+import { useLocation } from 'react-router-dom';
+import { PageHeader, Alert } from '@ramme-io/ui';
+import { appManifest } from '../config/app.manifest';
+import { DynamicBlock } from '../components/DynamicBlock';
+
+const Dashboard: React.FC = () => {
+  const location = useLocation();
+  
+  // 1. Determine current slug from URL
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  // If path is root or /dashboard, slug is 'dashboard', else take the last part
+  const currentSlug = pathParts.length > 1 ? pathParts[pathParts.length - 1] : 'dashboard';
+
+  // 2. Find the matching Page Definition
+  const pageDef = appManifest.pages?.find(p => p.slug === currentSlug) 
+    || appManifest.pages?.[0];
+
+  if (!pageDef) {
+    return (
+      <div className="p-8">
+        <Alert variant="warning" title="Page Not Found">
+          Could not find a definition for slug: <code>{currentSlug}</code>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 relative">
+      <PageHeader
+        title={pageDef.title}
+        description={pageDef.description}
+      />
+
+      {pageDef.sections.map((section) => (
+        <div key={section.id} className="relative">
+          {section.title && (
+            <h3 className="text-lg font-semibold mb-4 text-foreground">
+              {section.title}
+            </h3>
+          )}
+          
+          <div 
+            className="grid gap-6"
+            style={{ 
+              gridTemplateColumns: `repeat(${section.layout?.columns || 3}, minmax(300px, 1fr))` 
+            }}
+          >
+            {section.blocks.map((block) => (
+              <DynamicBlock key={block.id} block={block} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default Dashboard;
+</file>
+
 <file path="template/pkg.json">
 {
   "name": "ramme-app",
@@ -6650,24 +7080,27 @@ This project is licensed under the [MIT License](LICENSE).
     "mqtt": "^5.3.5",
     "zustand": "^4.5.0",
     "ag-grid-community": "^31.3.1",
-    "ag-grid-enterprise": "^31.3.1",  
-    "ag-grid-react": "^31.3.1",       
-    "framer-motion": "^12.23.12",
-    "fs-extra": "^11.3.1",
+    "ag-grid-enterprise": "^31.3.1",
+    "ag-grid-react": "^31.3.1",
+    "framer-motion": "^11.0.0",
+    "fs-extra": "^11.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-resizable-panels": "^3.0.4",
-    "react-router-dom": "6.30.1"
+    "react-router-dom": "^6.22.0",
+    "react-resizable-panels": "^2.0.9",
+    "ai": "^3.0.0",
+    "@ai-sdk/google": "^0.0.10",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
-    "@types/node": "^20.14.2",
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.4",
-    "typescript": "^5.2.2",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.2.0",
     "vite": "^5.2.0"
   }
 }
@@ -6676,7 +7109,7 @@ This project is licensed under the [MIT License](LICENSE).
 <file path="package.json">
 {
   "name": "@ramme-io/create-app",
-  "version": "1.1.9",
+  "version": "1.2.0",
   "type": "module",
   "bin": {
     "create-ramme-app": "./index.js"
