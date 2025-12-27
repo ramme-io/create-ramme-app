@@ -1,2 +1,6 @@
 node_modules
-template/dist/
+template/node_modules
+template/dist
+template/package.json
+template/package-lock.json
+.DS_Store

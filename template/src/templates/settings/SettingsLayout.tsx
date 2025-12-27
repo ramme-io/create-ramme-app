@@ -1,170 +1,110 @@
-/**
- * @file SettingsLayout.tsx
- * @repository ramme-app-starter
- * @description
- * Sidebar-Only layout. Moved TemplateSwitcher to SidebarContent.
- * Includes all previous fixes (href, icons, conditional branding, providers, etc.).
- * Confirmed handleResetData is included.
- */
-import React from 'react';
-import { Outlet, NavLink, Link } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Sidebar,
-  SidebarProvider,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarMenu,
-  SidebarMenuItem,
-  useSidebar,
-  Button,
-  Icon,
-  Avatar,
-  Menu,
-  MenuItem,
-  MenuDivider,
-  useTheme,
-  type ThemeName,
+  type SidebarItem,
+  type IconName,
 } from '@ramme-io/ui';
 import { settingsSitemap } from './settings.sitemap';
 import rammeLogo from '../../assets/orange.png';
 import { useAuth } from '../../contexts/AuthContext';
-import { appManifest } from '../../config/navigation';
-import type { ManifestLink } from '../../core/manifest-types';
 import { SitemapProvider } from '../../contexts/SitemapContext';
 import PageTitleUpdater from '../../components/PageTitleUpdater';
-// --- Import TemplateSwitcher ---
 import TemplateSwitcher from '../../components/TemplateSwitcher';
 
-// NavLink wrapper - Correctly maps href to 'to'
-const SidebarNavLink = React.forwardRef<HTMLAnchorElement, any>(
-  ({ end, href, ...props }, ref) => {
-    return <NavLink ref={ref} to={href || ''} {...props} end={end} />;
-  },
-);
-SidebarNavLink.displayName = 'SidebarNavLink';
-
-// Sidebar Content Component
-const AppSidebarContent: React.FC = () => {
-  const { isOpen, toggle } = useSidebar();
-  const { theme, availableThemes, setTheme } = useTheme();
+const SettingsLayout: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
-  const userNavLinks = appManifest.userMenu;
 
-  // --- handleResetData function remains here ---
+  // --- Actions ---
   const handleResetData = () => {
-    if (
-      window.confirm(
-        'Are you sure you want to reset all user data? This cannot be undone.',
-      )
-    ) {
+    if (window.confirm('Are you sure you want to reset all user data? This cannot be undone.')) {
       localStorage.removeItem('users');
       window.location.reload();
     }
   };
 
-  return (
-    <>
-      <SidebarHeader>
-        {/* Header now only contains Branding and Toggle */}
-        <div className={`flex items-center w-full h-full ${isOpen ? 'justify-between' : 'justify-end'}`}>
-          {/* Branding Link */}
-          <Link
-            to="/settings"
-            className={`flex items-center gap-2 transition-opacity duration-200 ${!isOpen ? 'opacity-0 hidden' : 'opacity-100'}`}
-            aria-hidden={!isOpen} tabIndex={!isOpen ? -1 : undefined}
-          >
-            <img src={rammeLogo} alt="Ramme Logo" className="h-7 w-auto" />
-            <span className="text-xl font-bold text-text">Ramme</span>
-          </Link>
+  // --- Data Mapping ---
+  // We combine the Sitemap navigation with the System Actions (Reset/Logout)
+  // so they all live harmoniously in the new "Zero Jank" sidebar list.
+  const sidebarItems: SidebarItem[] = useMemo(() => {
+    // 1. Navigation Items
+    const navItems: SidebarItem[] = settingsSitemap.map((item) => ({
+      id: item.id,
+      label: item.title,
+      icon: (item.icon as IconName) || 'settings',
+      href: item.path ? `/settings/${item.path}` : '/settings',
+    }));
 
-          {/* TemplateSwitcher REMOVED from here */}
+    // 2. System Actions (Appended to bottom)
+    const actionItems: SidebarItem[] = [
+      {
+        id: 'action-reset',
+        label: 'Reset Data',
+        icon: 'refresh-cw' as IconName,
+        onClick: handleResetData,
+      },
+      {
+        id: 'action-logout',
+        label: 'Logout',
+        icon: 'log-out' as IconName,
+        onClick: logout,
+      }
+    ];
 
-          {/* Toggle Button */}
-          <Button
-            variant="ghost" size="icon" onClick={toggle}
-            className="hidden md:flex"
-            aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            <Icon name={isOpen ? 'panel-left-close' : 'panel-left-open'} />
-          </Button>
-        </div>
-      </SidebarHeader>
+    return [...navItems, ...actionItems];
+  }, [logout]);
 
-      <SidebarContent>
-        {/* --- MOVED TemplateSwitcher HERE --- */}
-        {/* Only visible when sidebar is open */}
-        <div className={`mb-4 transition-opacity duration-200 ${!isOpen ? 'opacity-0 hidden' : 'opacity-100'}`}>
-             <TemplateSwitcher />
-        </div>
+  // Determine active item (only for nav items, actions don't stay active)
+  const activeItemId = useMemo(() => {
+    const active = sidebarItems.find(item => 
+      item.href && item.href !== '/settings' && location.pathname.startsWith(item.href)
+    );
+    return active?.id || (location.pathname === '/settings' ? sidebarItems[0]?.id : undefined);
+  }, [location.pathname, sidebarItems]);
 
-        {/* --- Sitemap Menu --- */}
-        <SidebarMenu>
-          {settingsSitemap.map((item) => (
-            <SidebarMenuItem
-              key={item.id} as={SidebarNavLink}
-              href={item.path ? `/settings/${item.path}` : '/settings'} end
-              icon={item.icon ? <Icon name={item.icon} /> : undefined}
-              tooltip={item.title}
-            >
-              {item.title}
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarContent>
-
-      <SidebarFooter>
-         {user && (
-           <Menu position="top-right" trigger={
-             <button className="flex items-center gap-3 w-full text-left rounded-md p-2 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary">
-               <Avatar name={user.name} size="sm" />
-               <div className={`flex-1 transition-opacity duration-200 ${!isOpen ? 'opacity-0 hidden' : 'opacity-100'}`}>
-                 <p className="font-semibold text-sm text-text">{user.name}</p>
-                 <p className="text-xs text-muted-foreground">{user.email}</p>
-               </div>
-             </button>
-           }>
-            {/* User Menu Content */}
-            {userNavLinks.map((link: ManifestLink) => (
-              <MenuItem key={link.id} asChild icon={link.icon ? <Icon name={link.icon} /> : undefined}>
-                <Link to={link.path}>{link.title}</Link>
-              </MenuItem>
-            ))}
-            <MenuDivider />
-            {availableThemes.map((themeName: string) => (
-              <MenuItem key={themeName} onClick={() => setTheme(themeName as ThemeName)}>
-                {themeName.charAt(0).toUpperCase() + themeName.slice(1)}
-              </MenuItem>
-            ))}
-            <MenuDivider />
-            {/* Calls handleResetData */}
-            <MenuItem onClick={handleResetData} icon={<Icon name="refresh-cw" />}> Reset Data </MenuItem>
-            {/* Calls logout */}
-            <MenuItem onClick={logout} icon={<Icon name="log-out" />}> Logout </MenuItem>
-          </Menu>
-         )}
-      </SidebarFooter>
-    </>
-  );
-};
-
-// Main layout component
-const SettingsLayout: React.FC = () => {
   return (
     <SitemapProvider value={settingsSitemap}>
       <PageTitleUpdater />
-      <SidebarProvider>
-        <div className="flex h-screen bg-background text-foreground">
-          <Sidebar>
-            <AppSidebarContent />
-          </Sidebar>
-          <div className="flex flex-col flex-1 overflow-y-auto">
-            <main className="p-8">
-              <Outlet />
-            </main>
-          </div>
+      
+      <div className="flex h-screen bg-background text-foreground">
+        <Sidebar
+          className="relative border-border"
+          items={sidebarItems}
+          activeItemId={activeItemId}
+          // Handle both Navigation (href) and Actions (onClick)
+          onNavigate={(item) => {
+            if (item.href) {
+              navigate(item.href);
+            }
+            // item.onClick is handled automatically by the Sidebar component if present
+          }}
+          user={user ? {
+            name: user.name,
+            email: user.email,
+            avatarUrl: undefined // Add avatar URL if available in user object
+          } : undefined}
+          logo={
+            <div className="flex items-center gap-2 px-2">
+              <img src={rammeLogo} alt="Ramme" className="h-7 w-auto" />
+              <span className="text-xl font-bold">Ramme</span>
+            </div>
+          }
+          // Inject the TemplateSwitcher into the footer slot (above the user profile)
+          footerSlot={
+            <div className="mb-2">
+              <TemplateSwitcher />
+            </div>
+          }
+        />
+
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <main className="flex-1 overflow-y-auto p-8 bg-muted/20">
+            <Outlet />
+          </main>
         </div>
-      </SidebarProvider>
+      </div>
     </SitemapProvider>
   );
 };

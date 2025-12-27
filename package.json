@@ -18,7 +18,6 @@
     "zip:builder": "cd template && zip -r ../base.zip . -x \"node_modules/*\" \"dist/*\" \".DS_Store\" && mv ../base.zip ../../ramme-app-builder/public/base.zip && echo '✅ base.zip updated in Builder!'"
   },
   "dependencies": {
-    "@ramme-io/ui": "^1.1.5",
     "ag-grid-community": "^34.1.2",
     "ag-grid-enterprise": "^34.1.2",
     "ag-grid-react": "^34.1.2",
