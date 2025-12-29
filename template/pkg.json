@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ramme-io/ui": "^1.2.1",
+    "@ramme-io/ui": "^1.2.2",
     "mqtt": "^5.3.5",
     "zustand": "^4.5.0",
     "ag-grid-community": "^31.3.1",
