@@ -1,34 +1,33 @@
-import { type SitemapEntry } from '../../core/sitemap-entry';
+import { type SitemapEntry } from '../../engine/types/sitemap-entry';
 
-// Component Imports from the main /pages directory
-import Dashboard from '../../pages/Dashboard';
-import AiChat from '../../pages/AiChat';
-import DataGridPage from '../../pages/DataGridPage';
-import AccountingLedgerPage from '../../pages/AccountingLedgerPage';
-import Styleguide from '../../pages/styleguide/Styleguide';
-import DataLayout from '../../layouts/DataLayout';
+// --- PAGE IMPORTS ---
+// ✅ Corrected: Kept named import for OverviewPage based on your index.ts export
+import { OverviewPage } from '../../features/overview'; 
+import AiChat from '../../features/ai/pages/AiChat';
 
-// Style Guide Section Imports
-import TemplatesSection from '../../pages/styleguide/sections/templates/TemplatesSection';
-import LayoutSection from '../../pages/styleguide/sections/layout/LayoutSection';
-import ThemingSection from '../../pages/styleguide/sections/theming/ThemingSection';
-import NavigationSection from '../../pages/styleguide/sections/navigation/NavigationSection';
-import TablesSection from '../../pages/styleguide/sections/tables/TablesSection';
-import ChartsSection from '../../pages/styleguide/sections/charts/ChartsSection';
-import ElementsSection from '../../pages/styleguide/sections/elements/ElementsSection';
-import FormsSection from '../../pages/styleguide/sections/forms/FormsSection';
-import FeedbackSection from '../../pages/styleguide/sections/feedback/FeedbackSection';
-import UtilitiesSection from '../../pages/styleguide/sections/utilities/UtilitiesSection';
-import ColorsSection from '../../pages/styleguide/sections/colors/ColorsSection';
-import IconsSection from '../../pages/styleguide/sections/icons/IconsSection';
+import Styleguide from '../../features/styleguide/Styleguide';
+
+// --- SECTION IMPORTS ---
+import TemplatesSection from '../../features/styleguide/sections/templates/TemplatesSection';
+import LayoutSection from '../../features/styleguide/sections/layout/LayoutSection';
+import ThemingSection from '../../features/styleguide/sections/theming/ThemingSection';
+import NavigationSection from '../../features/styleguide/sections/navigation/NavigationSection';
+import TablesSection from '../../features/styleguide/sections/tables/TablesSection';
+import ChartsSection from '../../features/styleguide/sections/charts/ChartsSection';
+import ElementsSection from '../../features/styleguide/sections/elements/ElementsSection';
+import FormsSection from '../../features/styleguide/sections/forms/FormsSection';
+import FeedbackSection from '../../features/styleguide/sections/feedback/FeedbackSection';
+import UtilitiesSection from '../../features/styleguide/sections/utilities/UtilitiesSection';
+import ColorsSection from '../../features/styleguide/sections/colors/ColorsSection';
+import IconsSection from '../../features/styleguide/sections/icons/IconsSection';
 
 export const docsSitemap: SitemapEntry[] = [
   {
     id: 'dashboard',
-    path: '', // Index route for the /docs/ layout
+    path: '', // Index route
     title: 'Dashboard',
     icon: 'home',
-    component: Dashboard,
+    component: OverviewPage,
   },
   {
     id: 'ai-chat',
@@ -36,17 +35,6 @@ export const docsSitemap: SitemapEntry[] = [
     title: 'AI Chat',
     icon: 'bot',
     component: AiChat,
-  },
-  {
-    id: 'data',
-    path: 'data',
-    title: 'Data',
-    icon: 'database',
-    component: DataLayout,
-    children: [
-      { id: 'grid', path: 'grid', title: 'Data Grid', component: DataGridPage, icon: 'table' },
-      { id: 'ledger', path: 'ledger', title: 'Ledger', component: AccountingLedgerPage, icon: 'book-open' },
-    ],
   },
   {
     id: 'styleguide',

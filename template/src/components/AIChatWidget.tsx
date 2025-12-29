@@ -7,7 +7,7 @@ import {
   Button,
   Icon,
 } from '@ramme-io/ui';
-import { useMockChat } from '../hooks/useMockChat';
+import { useMockChat } from '../features/assistant/useMockChat';
 
 interface AIChatWidgetProps {
   onClose: () => void;
@@ -31,7 +31,7 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ onClose }) => {
       <div className="p-4 border-b flex justify-between items-center bg-muted/50 rounded-t-lg">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="font-semibold text-sm">Bodewell AI</span>
+          <span className="font-semibold text-sm">AI Chat</span>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-6 w-6">
           <Icon name="x" size={16} />

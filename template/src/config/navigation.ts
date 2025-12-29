@@ -5,7 +5,7 @@
  * This is the central manifest for all GLOBAL, shared navigation elements.
  * Corrected paths to point within the /settings layout.
  */
-import type { ManifestLink } from '../core/manifest-types';
+import type { ManifestLink } from '../engine/types/manifest-types';
 
 interface AppManifest {
   userMenu: ManifestLink[];

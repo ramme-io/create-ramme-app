@@ -1,37 +1,41 @@
-// src/data/mock-charts.ts
-import type { ChartData } from 'chart.js';
+/**
+ * @file mock-charts.ts
+ * @description The "Chart Data Lake".
+ *
+ * ARCHITECTURAL ROLE:
+ * This file stores the structured data required by Recharts components.
+ * Separating this from the tabular `mockData.ts` prevents bloat and allows
+ * for specific optimization of visualization data.
+ */
 
-// The centralized registry of "Heavy Data"
-export const MOCK_CHART_DATA: Record<string, ChartData<any>> = {
+// 1. Define a generic shape for Recharts data
+// Recharts expects an array of objects: [{ name: 'A', value: 10 }, ...]
+export type RechartsData = Record<string, any>[];
+
+export const MOCK_CHART_DATA: Record<string, RechartsData> = {
   
   // ID: energy_history
-  energy_history: {
-    labels: ["12am", "4am", "8am", "12pm", "4pm", "8pm"],
-    datasets: [
-      {
-        label: "Energy (kWh)",
-        data: [12, 19, 3, 5, 2, 3],
-        borderColor: "#3b82f6",
-        backgroundColor: "rgba(59, 130, 246, 0.5)",
-        tension: 0.4
-      }
-    ]
-  },
+  energy_history: [
+    { time: "12am", value: 12 },
+    { time: "4am", value: 19 },
+    { time: "8am", value: 3 },
+    { time: "12pm", value: 5 },
+    { time: "4pm", value: 2 },
+    { time: "8pm", value: 3 }
+  ],
 
   // ID: server_load
-  server_load: {
-    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    datasets: [
-      {
-        label: "CPU Load %",
-        data: [45, 52, 38, 70, 65, 30, 40],
-        borderColor: "#10b981",
-        backgroundColor: "rgba(16, 185, 129, 0.5)"
-      }
-    ]
-  }
+  server_load: [
+    { day: "Mon", load: 45 },
+    { day: "Tue", load: 52 },
+    { day: "Wed", load: 38 },
+    { day: "Thu", load: 70 },
+    { day: "Fri", load: 65 },
+    { day: "Sat", load: 30 },
+    { day: "Sun", load: 40 }
+  ]
 };
 
 export const getChartData = (id: string) => {
-  return MOCK_CHART_DATA[id] || null;
+  return MOCK_CHART_DATA[id] || [];
 };

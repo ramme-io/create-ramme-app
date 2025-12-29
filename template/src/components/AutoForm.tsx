@@ -1,6 +1,19 @@
 import React, { useMemo } from 'react';
 import { Drawer, FormTemplate, Button, type FormField } from '@ramme-io/ui';
 
+/**
+ * @file AutoForm.tsx
+ * @description The "Zero-Boilerplate" Form Engine.
+ * * ARCHITECTURAL ROLE:
+ * This component acts as the bridge between your data schema (JSON) and the UI.
+ * Instead of writing manual form code for every resource (Users, Products, Orders),
+ * this component dynamically generates the correct inputs based on the field type.
+ * * KEY FEATURES:
+ * 1. **Smart Mapping:** Automatically converts 'boolean' -> Toggle, 'date' -> DatePicker, etc.
+ * 2. **Context Aware:** Auto-detects "Create" vs "Edit" mode based on `initialData`.
+ * 3. **Safety Logic:** Automatically hides primary keys during creation and locks them during editing.
+ */
+
 interface AutoFormProps {
   isOpen: boolean;
   onClose: () => void;

@@ -5,19 +5,19 @@
  * Defines the Information Architecture (IA) for the "Settings" layout.
  * Imports components from the /pages/settings/ directory.
  */
-import type { SitemapEntry } from '../../core/sitemap-entry';
+import type { SitemapEntry } from '../../engine/types/sitemap-entry';
 
 // --- 1. Import from the new /pages/settings/ directory ---
-import ProfilePage from '../../pages/settings/ProfilePage';
-import BillingPage from '../../pages/settings/BillingPage';
-import TeamPage from '../../pages/settings/TeamPage';
+import ProfilePage from '../../features/settings/pages/ProfilePage';
+import BillingPage from '../../features/settings/pages/BillingPage';
+import TeamPage from '../../features/settings/pages/TeamPage';
 
 // --- 2. Export with the correct name ---
 export const settingsSitemap: SitemapEntry[] = [
   {
-    id: 'settings.profile',
+    id: 'profile',
     path: 'profile',
-    title: 'Profile',
+    title: 'My Profile',
     icon: 'user',
     component: ProfilePage,
   },

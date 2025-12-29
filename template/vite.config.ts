@@ -2,22 +2,25 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      
+      // ✅ FIX: Go up 2 levels to find the sibling 'ramme-ui' folder
+      '@ramme-io/ui': path.resolve(__dirname, '../../ramme-ui/src'),
     },
   },
-  // ADD THIS SECTION to ensure the linked dependency is correctly
-  // processed and watched for changes by the Vite dev server.
-  optimizeDeps: {
-    include: ['@ramme-io/ui'],
-  },
-  build: {
-    commonjsOptions: {
-      include: [/@ramme\/ui/, /node_modules/],
+  // ✅ CRITICAL: Allow Vite to serve files outside the current project folder
+  server: {
+    fs: {
+      allow: [
+        // Allow serving files from the project root
+        '.',
+        // Allow serving files from the sibling UI library
+        '../../ramme-ui', 
+      ],
     },
   },
 });

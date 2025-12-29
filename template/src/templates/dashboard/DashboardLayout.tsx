@@ -8,11 +8,11 @@ import {
 } from '@ramme-io/ui'; // ✅ Import only what exists in v1.2.0
 
 import { dashboardSitemap } from './dashboard.sitemap';
-import { SitemapProvider } from '../../contexts/SitemapContext';
+import { SitemapProvider } from '../../engine/runtime/SitemapContext';
 import PageTitleUpdater from '../../components/PageTitleUpdater';
 import AppHeader from '../../components/AppHeader';
 import { AIChatWidget } from '../../components/AIChatWidget';
-import { useWorkflowEngine } from '../../hooks/useWorkflowEngine';
+import { useWorkflowEngine } from '../../engine/runtime/useWorkflowEngine';
 
 // Main Layout Component
 const DashboardLayout: React.FC = () => {

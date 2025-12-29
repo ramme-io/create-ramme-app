@@ -6,8 +6,8 @@
  */
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useSitemap } from '../contexts/SitemapContext'; // Import our context hook
-import type { SitemapEntry } from '../core/sitemap-entry';
+import { useSitemap } from '../engine/runtime/SitemapContext'; // Import our context hook
+import type { SitemapEntry } from '../engine/types/sitemap-entry';
 
 // Helper function to recursively find a route by path
 const findRouteByPath = (

@@ -1,8 +1,16 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { generateRoutes } from './core/route-generator';
 import { useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { generateRoutes } from './engine/renderers/route-generator';
+import { ThemeProvider } from '@ramme-io/ui';
+import { AuthProvider } from './features/auth/AuthContext';
+import { MqttProvider } from './engine/runtime/MqttContext';
 
-// --- 1. IMPORT ALL THREE TEMPLATES ---
+// --- 1. IMPORT AUTH CLUSTER ---
+import { AuthLayout } from './features/auth/pages/AuthLayout';
+import LoginPage from './features/auth/pages/LoginPage';
+import SignupPage from './features/auth/pages/SignupPage';
+
+// --- 2. IMPORT TEMPLATES ---
 import DashboardLayout from './templates/dashboard/DashboardLayout';
 import { dashboardSitemap } from './templates/dashboard/dashboard.sitemap';
 import DocsLayout from './templates/docs/DocsLayout';
@@ -12,43 +20,66 @@ import { settingsSitemap } from './templates/settings/settings.sitemap';
 
 // Other Imports
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPage';
-import NotFound from './pages/styleguide/NotFound';
+import NotFound from './components/NotFound';
 
-// --- 2. IMPORT THE SEEDER ---
-import { initializeDataLake } from './core/data-seeder';
+// --- 3. DATA SEEDER ---
+import { initializeDataLake } from './engine/runtime/data-seeder';
+
+import ScrollToTop from './components/ScrollToTop';
+import HashLinkScroll from './components/HashLinkScroll';
 
 function App() {
   
-  // ✅ 3. TRIGGER DATA SEEDING ON MOUNT
+  // Trigger data seeding on mount
   useEffect(() => {
     initializeDataLake();
   }, []);
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<ProtectedRoute />}>
-        {/* ✅ FIX: Redirect root to the new Welcome page */}
-        <Route path="/" element={<Navigate to="/dashboard/welcome" replace />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <MqttProvider>
+          <ScrollToTop />
+          <HashLinkScroll />
+          <Routes>
+            {/* --- NEW AUTH CLUSTER --- */}
+            {/* This handles the layout and background for all auth pages */}
+            <Route path="/auth" element={<AuthLayout />}>
+              <Route index element={<Navigate to="/auth/login" replace />} />
+              <Route path="login" element={<LoginPage />} />
+              <Route path="signup" element={<SignupPage />} />
+            </Route>
 
-        {/* Dashboard Template Routes */}
-        <Route path="/dashboard/*" element={<DashboardLayout />}>
-          {generateRoutes(dashboardSitemap)}
-        </Route>
+            {/* Fallback for legacy /login access */}
+            <Route path="/login" element={<Navigate to="/auth/login" replace />} />
 
-        {/* Docs Template Routes */}
-        <Route path="/docs/*" element={<DocsLayout />}>
-          {generateRoutes(docsSitemap)}
-        </Route>
+            {/* --- PROTECTED APP ROUTES --- */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Navigate to="/dashboard/welcome" replace />} />
 
-        {/* Settings Layout Route */}
-        <Route path="/settings/*" element={<SettingsLayout />}>
-          {generateRoutes(settingsSitemap)}
-        </Route>
-      </Route>
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+              {/* Dashboard Template */}
+              <Route path="/dashboard/*" element={<DashboardLayout />}>
+              <Route index element={<Navigate to="welcome" replace />} />
+                {generateRoutes(dashboardSitemap)}
+              </Route>
+
+              {/* Docs Template */}
+              <Route path="/docs/*" element={<DocsLayout />}>
+                {generateRoutes(docsSitemap)}
+              </Route>
+
+              {/* Settings Template */}
+              <Route path="/settings/*" element={<SettingsLayout />}>
+                {generateRoutes(settingsSitemap)}
+              </Route>
+            </Route>
+
+            {/* 404 Handler */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </MqttProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

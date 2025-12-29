@@ -7,8 +7,8 @@ import {
 } from '@ramme-io/ui';
 import { settingsSitemap } from './settings.sitemap';
 import rammeLogo from '../../assets/orange.png';
-import { useAuth } from '../../contexts/AuthContext';
-import { SitemapProvider } from '../../contexts/SitemapContext';
+import { useAuth } from '../../features/auth/AuthContext';
+import { SitemapProvider } from '../../engine/runtime/SitemapContext';
 import PageTitleUpdater from '../../components/PageTitleUpdater';
 import TemplateSwitcher from '../../components/TemplateSwitcher';
 

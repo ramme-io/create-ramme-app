@@ -19,11 +19,11 @@ import {
   useTheme,
   type ThemeName,
 } from '@ramme-io/ui';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../features/auth/AuthContext';
 
 // --- STRATEGIC IMPORTS ---
 import { appManifest } from '../config/navigation';
-import type { ManifestLink } from '../core/manifest-types';
+import type { ManifestLink } from '../engine/types/manifest-types';
 import TemplateSwitcher from './TemplateSwitcher';
 import rammeLogo from '../assets/orange.png'; // <-- 1. IMPORT THE LOGO
 

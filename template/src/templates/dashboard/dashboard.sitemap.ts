@@ -1,11 +1,16 @@
-import { type SitemapEntry } from '../../core/sitemap-entry';
+import { type SitemapEntry } from '../../engine/types/sitemap-entry';
 import { appManifest } from '../../config/app.manifest';
-import Dashboard from '../../pages/Dashboard';
-import AiChat from '../../pages/AiChat';
-import Welcome from '../../pages/Welcome'; // ✅ Import the new page
+
+// Existing pages (Legacy location)
+import Welcome from '../../features/onboarding/pages/Welcome'; 
+import { OverviewPage } from '../../features/overview'; 
+import AiChat from '../../features/ai/pages/AiChat'; 
+
+// ✅ NEW: Import from the Feature Domain (Clean API)
+import { UsersPage } from '../../features/users'; 
 
 export const dashboardSitemap: SitemapEntry[] = [
-  // ✅ 1. The New Landing Page
+  // 1. The New Landing Page
   {
     id: 'welcome',
     path: 'welcome',
@@ -13,24 +18,23 @@ export const dashboardSitemap: SitemapEntry[] = [
     icon: 'rocket',
     component: Welcome,
   },
+  // 2. The "Mission Control" Charts Page
+  {
+  id: 'overview',
+  path: 'overview',
+  title: 'Overview',
+  icon: 'layout-dashboard',
+  component: OverviewPage, 
+},
+  // 3. ✅ The User Management Module
+  {
+    id: 'users',
+    path: 'users',
+    title: 'Users',
+    icon: 'users',
+    component: UsersPage,
+  }
 ];
-
-// A. Dynamic Pages from Manifest
-if (appManifest.pages) {
-  appManifest.pages.forEach(page => {
-    const isDashboard = page.slug === 'dashboard';
-    
-    dashboardSitemap.push({
-      id: page.id,
-      title: page.title,
-      // ✅ FIX: Map the main dashboard to 'app' instead of root ''
-      // This prevents conflict with the layout root
-      path: isDashboard ? 'app' : page.slug,
-      icon: isDashboard ? 'layout-dashboard' : 'file-text',
-      component: Dashboard,
-    });
-  });
-}
 
 // B. Dynamic Modules
 if (appManifest.modules?.includes('ai-chat')) {

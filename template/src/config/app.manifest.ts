@@ -1,4 +1,6 @@
-import type { AppSpecification } from '../types/schema';
+import type { AppSpecification } from '../engine/validation/schema';
+
+
 
 export const appManifest: AppSpecification = {
   meta: {
