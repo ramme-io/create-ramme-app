@@ -1,5 +1,3 @@
-// src/core/data-seeder.ts
-
 // ✅ Match the export from your new mockData.ts
 import { DATA_REGISTRY } from '../../data/mockData'; 
 
@@ -10,8 +8,10 @@ import { DATA_REGISTRY } from '../../data/mockData';
  * This utility ensures that the LocalStorage "Data Lake" is never empty.
  * On app launch, it checks if data exists. If not, it writes the seed data
  * from `mockData.ts` into the browser's storage.
- * * This allows the app to feel "alive" with data immediately after installation.
  */
+
+// 🔒 SHARED CONSTANT: Ensure everyone uses the same key format
+const DB_PREFIX = 'ramme_mock_'; 
 
 export const initializeDataLake = () => {
   if (typeof window === 'undefined') return;
@@ -19,12 +19,12 @@ export const initializeDataLake = () => {
   console.groupCollapsed('🌊 [Data Lake] Initialization');
   
   Object.entries(DATA_REGISTRY).forEach(([key, seedData]) => {
-    // ⚠️ REMOVED PREFIX ('ramme_db_') so it matches AuthContext
-    const storageKey = key; 
+    // ✅ FIX: Use the prefix so getMockData() can find it
+    const storageKey = `${DB_PREFIX}${key}`; 
     const existing = localStorage.getItem(storageKey);
 
     if (!existing) {
-      console.log(`✨ Seeding collection: ${key} (${seedData.length} records)`);
+      console.log(`✨ Seeding collection: ${key} (${(seedData as any[]).length} records)`);
       localStorage.setItem(storageKey, JSON.stringify(seedData));
     } else {
       console.log(`✅ Collection exists: ${key}`);
@@ -39,7 +39,9 @@ export const initializeDataLake = () => {
  */
 export const resetDataLake = () => {
   Object.keys(DATA_REGISTRY).forEach((key) => {
-    localStorage.removeItem(key); // Matches the storageKey above
+    const storageKey = `${DB_PREFIX}${key}`;
+    localStorage.removeItem(storageKey); 
   });
+  console.log("🔥 Data Lake Evaporated (Cleared)");
   window.location.reload();
 };

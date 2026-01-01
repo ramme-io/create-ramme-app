@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import mqtt, { type MqttClient } from 'mqtt';
-import { appManifest } from '../../config/app.manifest'; // ✅ Connect to the Single Source of Truth
+// ❌ REMOVED: import { appManifest } from '../../config/app.manifest';
+// ✅ ADDED: Live Context
+import { useManifest } from './ManifestContext';
 
 interface MqttContextType {
   isConnected: boolean;
@@ -12,44 +14,38 @@ interface MqttContextType {
 
 const MqttContext = createContext<MqttContextType | null>(null);
 
-/**
- * @file MqttContext.tsx
- * @description The Real-Time Connectivity Layer.
- *
- * ARCHITECTURAL ROLE:
- * This provider establishes a persistent WebSocket connection to the MQTT Broker
- * defined in `app.manifest.ts`.
- *
- * KEY FEATURES:
- * 1. **Global Connection:** Maintains one connection for the whole app (Singleton pattern).
- * 2. **Topic Management:** specific components (like DeviceCard) can subscribe to
- * specific topics on demand using `subscribe()`.
- * 3. **State Distribution:** Broadcasts the latest messages to any component using `useMqtt()`.
- */
-
 export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<Record<string, string>>({});
   const clientRef = useRef<MqttClient | null>(null);
   const subscriptions = useRef<Set<string>>(new Set());
 
+  // ✅ 1. Consume Live Manifest
+  const appManifest = useManifest();
+
   useEffect(() => {
-    // ✅ Load Broker URL from the Manifest Config
+    // ✅ 2. Hot-Swap Broker Connection
+    // If you change the Broker URL in the Builder, this effect will re-run!
     const brokerUrl = appManifest.config.brokerUrl || 'wss://test.mosquitto.org:8081';
     console.log(`[MQTT] Connecting to ${brokerUrl}...`);
     
+    // Disconnect previous if exists
+    if (clientRef.current) {
+        clientRef.current.end();
+    }
+
     const client = mqtt.connect(brokerUrl);
     clientRef.current = client;
 
     client.on('connect', () => {
       console.log('[MQTT] Connected ✅');
       setIsConnected(true);
+      // Re-subscribe to previous topics if needed
+      subscriptions.current.forEach(t => client.subscribe(t));
     });
 
-    // ✅ FIX: Proper typing for MQTT payload (Buffer)
     client.on('message', (topic: string, payload: Buffer) => {
       const messageStr = payload.toString();
-      // console.log(`[MQTT] Msg: ${topic} -> ${messageStr}`); // Optional debug
       setLastMessage((prev) => ({ ...prev, [topic]: messageStr }));
     });
 
@@ -62,11 +58,10 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[MQTT] Disconnecting...');
       client.end();
     };
-  }, []);
+  }, [appManifest.config.brokerUrl]); // Only re-connect if URL changes
 
   const subscribe = (topic: string) => {
     if (clientRef.current && !subscriptions.current.has(topic)) {
-      console.log(`[MQTT] Subscribing to: ${topic}`);
       clientRef.current.subscribe(topic);
       subscriptions.current.add(topic);
     }

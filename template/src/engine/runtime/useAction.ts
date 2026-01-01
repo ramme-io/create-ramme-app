@@ -1,36 +1,25 @@
 import { useCallback } from 'react';
 import { useMqtt } from './MqttContext';
-// ✅ User Verified Path
-import { appManifest } from '../../config/app.manifest';
-
-/**
- * @file useAction.ts
- * @description The "Effectuator" hook.
- *
- * ARCHITECTURAL ROLE:
- * This hook handles outgoing commands from the UI. It abstracts the transport layer,
- * automatically routing actions to the correct destination (MQTT, HTTP, or Mock Console)
- * based on the entity's configuration in the manifest.
- */
+// ❌ REMOVED: import { appManifest } from '../../config/app.manifest';
+// ✅ ADDED: Live Context
+import { useManifest } from './ManifestContext';
 
 export const useAction = () => {
   const { publish, isConnected } = useMqtt();
   
-  // Destructure config/domain from the manifest
+  // ✅ 1. Consume Live Manifest
+  const appManifest = useManifest();
   const { config, domain } = appManifest;
 
   const sendAction = useCallback(async (entityId: string, value: any) => {
-    // 1. Find the Entity definition
-    // Note: If domain.entities is empty (early stage), this is where we'd add fallback logic
+    // 2. Find the Entity definition (Live)
     const entity = domain.entities.find(e => e.id === entityId);
     
     if (!entity) {
-      // For development/debugging, we log this even if the entity is missing
       console.warn(`[Action] Entity ID '${entityId}' not found in manifest.`);
       return;
     }
 
-    // 2. Find the Primary Signal (The target of the action)
     const signalId = entity.signals[0];
     const signal = domain.signals.find(s => s.id === signalId);
 
@@ -39,8 +28,6 @@ export const useAction = () => {
       return;
     }
 
-    // 3. EXECUTE based on Mode & Source
-    
     // --- Mock Mode ---
     if (config.mockMode) {
       console.log(`%c[Mock Action] Setting ${entity.name} to:`, 'color: #10b981; font-weight: bold;', value);
@@ -60,7 +47,6 @@ export const useAction = () => {
 
     // --- Live Mode (HTTP) ---
     if (signal.source === 'http' && signal.endpoint) {
-      console.log(`[HTTP] POST to ${signal.endpoint}:`, value);
       try {
         await fetch(signal.endpoint, {
             method: 'POST',
@@ -68,7 +54,7 @@ export const useAction = () => {
             body: JSON.stringify({ id: signal.id, value })
         });
       } catch (err) {
-        console.log('[HTTP] (Simulation) Request sent.'); 
+        console.log('[HTTP] (Simulation) Request sent.');
       }
     }
 

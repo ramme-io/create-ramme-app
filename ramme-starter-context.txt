@@ -49,7 +49,11 @@ template/
   src/
     assets/
       orange.png
+      react.svg
     components/
+      dashboard/
+        ChartLine.tsx
+        StatCard.tsx
       AddItemsModal.tsx
       AIChatWidget.tsx
       AppFooter.tsx
@@ -76,11 +80,15 @@ template/
         route-generator.tsx
       runtime/
         data-seeder.ts
+        ManifestContext.tsx
         MqttContext.tsx
         SitemapContext.tsx
         useAction.ts
         useCrudLocalStorage.ts
         useDataQuery.ts
+        useDynamicSitemap.tsx
+        useJustInTimeSeeder.ts
+        useLiveBridge.ts
         useSignal.ts
         useSignalStore.ts
         useWorkflowEngine.ts
@@ -150,14 +158,13 @@ template/
             UtilitiesSection.tsx
         Styleguide.tsx
       users/
-        api/
-          user.service.ts
-          user.types.ts
         components/
           UserDrawer.tsx
         pages/
           UsersPage.tsx
         index.ts
+      visualizations/
+        SmartChart.tsx
       GenericContentPage.tsx
     templates/
       dashboard/
@@ -197,6 +204,689 @@ README.md
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="template/src/components/dashboard/ChartLine.tsx">
+import React from 'react';
+import { Card } from '@ramme-io/ui';
+
+export const ChartLine: React.FC<{ title: string; description?: string }> = ({ title, description }) => {
+  return (
+    <Card className="p-6 h-full min-h-[300px] flex flex-col">
+      <div className="mb-6">
+        <h3 className="font-semibold text-lg">{title}</h3>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      </div>
+      
+      {/* Visual Mockup of a Chart */}
+      <div className="flex-1 flex items-end justify-between gap-2 px-2 pb-2 mt-4 border-b border-l border-border/50">
+        {[40, 70, 45, 90, 65, 85, 55, 95, 75, 60, 90, 100].map((h, i) => (
+           <div key={i} className="w-full flex flex-col items-center gap-2 group">
+              <div 
+                className="w-full bg-primary/20 group-hover:bg-primary/80 transition-all rounded-t-sm"
+                style={{ height: `${h}%` }}
+              />
+           </div>
+        ))}
+      </div>
+      <div className="flex justify-between mt-2 text-xs text-muted-foreground px-2">
+         <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+    </Card>
+  );
+};
+</file>
+
+<file path="template/src/components/dashboard/StatCard.tsx">
+import React from 'react';
+import { Card } from '@ramme-io/ui';
+import { ArrowUpRight, ArrowDownRight, Activity, Users, DollarSign, CreditCard } from 'lucide-react';
+
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  trend?: string;
+  status?: 'positive' | 'negative' | 'neutral' | 'offline';
+}
+
+export const StatCard: React.FC<StatCardProps> = ({ 
+  title, 
+  value, 
+  trend, 
+  status = 'neutral' 
+}) => {
+  const statusColors = {
+    positive: 'text-green-600 bg-green-100',
+    negative: 'text-red-600 bg-red-100',
+    neutral: 'text-blue-600 bg-blue-100',
+    offline: 'text-gray-400 bg-gray-100',
+  };
+
+  const getIcon = () => {
+    switch(title?.toLowerCase()) {
+      case 'active users': return <Users size={20} />;
+      case 'revenue': return <DollarSign size={20} />;
+      case 'sales': return <CreditCard size={20} />;
+      default: return <Activity size={20} />;
+    }
+  };
+
+  return (
+    <Card className="p-6 flex flex-col justify-between h-full border-border/60 hover:shadow-md transition-all">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <h3 className="text-2xl font-bold mt-1 tracking-tight">{value || '--'}</h3>
+        </div>
+        <div className={`p-2 rounded-lg ${statusColors[status] || statusColors.neutral}`}>
+          {getIcon()}
+        </div>
+      </div>
+      
+      {trend && (
+        <div className="flex items-center gap-1 text-xs font-medium">
+          {trend.startsWith('+') ? (
+            <ArrowUpRight size={14} className="text-green-600" />
+          ) : (
+            <ArrowDownRight size={14} className="text-red-600" />
+          )}
+          <span className={trend.startsWith('+') ? 'text-green-600' : 'text-red-600'}>
+            {trend}
+          </span>
+          <span className="text-muted-foreground ml-1">from last month</span>
+        </div>
+      )}
+    </Card>
+  );
+};
+</file>
+
+<file path="template/src/engine/runtime/ManifestContext.tsx">
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+// ✅ FIX 1: Correct Path to Static Manifest
+import { appManifest as staticManifest } from '../../config/app.manifest';
+// ✅ FIX 2: Correct Path to Types
+import type { AppSpecification } from '../validation/schema';
+
+interface ManifestContextType {
+  manifest: AppSpecification;
+  isLive: boolean;
+}
+
+const ManifestContext = createContext<ManifestContextType>({ 
+  manifest: staticManifest, 
+  isLive: false 
+});
+
+export const ManifestProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // 1. Initialize State
+  const [manifest, setManifest] = useState<AppSpecification>(staticManifest);
+  const [isLive, setIsLive] = useState(false);
+  
+  // 2. Global Listener Guard (Refs persist across re-renders)
+  const isListening = useRef(false);
+
+  useEffect(() => {
+    // Prevent double-attaching listeners in StrictMode
+    if (isListening.current) return;
+    isListening.current = true;
+
+    // A. Define the Listener
+    const handleMessage = (event: MessageEvent) => {
+      // Security: Filter out noise, listen only for our specific event
+      if (event.data?.type === 'RAMME_SYNC_MANIFEST') {
+        const payload = event.data.payload;
+        // console.log("⚡️ [Context] Sync Received");
+        setManifest(payload);
+        setIsLive(true);
+      }
+    };
+
+    // B. Attach Listener
+    window.addEventListener('message', handleMessage);
+
+    // C. Send Handshake (ONCE per session)
+    // We check a global window property to ensure we never spam the parent,
+    // even if this Provider is unmounted and remounted by React Router.
+    if (window.parent !== window && !(window as any).__RAMME_HANDSHAKE_SENT) {
+       console.log("🔌 [Context] Handshake Sent 🤝");
+       window.parent.postMessage({ type: 'RAMME_CLIENT_READY' }, '*');
+       (window as any).__RAMME_HANDSHAKE_SENT = true;
+    }
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      isListening.current = false;
+    };
+  }, []);
+
+  return (
+    <ManifestContext.Provider value={{ manifest, isLive }}>
+      {children}
+    </ManifestContext.Provider>
+  );
+};
+
+// --- CONSUMER HOOKS ---
+
+export const useManifest = () => {
+  const context = useContext(ManifestContext);
+  if (!context) return staticManifest;
+  return context.manifest;
+};
+
+// Returns 'live' | 'static' string to match your UI components
+export const useBridgeStatus = () => {
+  const context = useContext(ManifestContext);
+  return context?.isLive ? 'live' : 'static';
+};
+</file>
+
+<file path="template/src/engine/runtime/useDynamicSitemap.tsx">
+import { useMemo } from 'react';
+import { useManifest } from './ManifestContext';
+import { DynamicPage } from '../renderers/DynamicPage';
+import { type SitemapEntry } from '../types/sitemap-entry';
+import { type IconName } from '@ramme-io/ui';
+
+/**
+ * @hook useDynamicSitemap
+ * @description Merges the static sitemap (boilerplate) with dynamic pages from the Live Manifest.
+ */
+export const useDynamicSitemap = (staticSitemap: SitemapEntry[]) => {
+  const manifest = useManifest();
+
+  return useMemo(() => {
+    // 1. Convert Manifest Pages -> Sitemap Entries
+    const dynamicEntries: SitemapEntry[] = (manifest.pages || []).map((page) => ({
+      id: page.id,
+      path: page.slug,
+      title: page.title,
+      icon: (page.icon as IconName) || 'layout', // Default icon
+      // ⚡️ MAGIC: We create a component wrapper on the fly
+      component: () => <DynamicPage pageId={page.id} />
+    }));
+
+    // 2. Filter out duplicates (if a dynamic page overrides a static ID)
+    const staticIds = new Set(staticSitemap.map(s => s.id));
+    const uniqueDynamic = dynamicEntries.filter(d => !staticIds.has(d.id));
+
+    // 3. Return Combined List
+    return [...staticSitemap, ...uniqueDynamic];
+  }, [manifest, staticSitemap]);
+};
+</file>
+
+<file path="template/src/engine/runtime/useJustInTimeSeeder.ts">
+/**
+ * @file useJustInTimeSeeder.ts
+ * @description Runtime Data Generator for the Preview Engine.
+ */
+
+import { useMemo } from 'react';
+import { getMockData } from '../../data/mockData';
+import type { ResourceDefinition, FieldDefinition } from '../validation/schema';
+
+// Helper: Generate a semi-realistic value based on field type
+const generateValue = (field: FieldDefinition, index: number) => {
+  const i = index + 1;
+  const label = field.label || 'Item';
+  
+  switch (field.type) {
+    case 'text': 
+      return `${label} ${i}`;
+    case 'number': 
+      return Math.floor(Math.random() * 100) + 1;
+    case 'currency': 
+      return (Math.random() * 1000).toFixed(2);
+    case 'boolean': 
+      return Math.random() > 0.5;
+    case 'date': 
+      // Return a date within the last 30 days
+      const d = new Date();
+      d.setDate(d.getDate() - (i * 2));
+      return d.toISOString();
+    case 'status': 
+      return ['Active', 'Pending', 'Inactive', 'Archived'][index % 4];
+    case 'email': 
+      return `user${i}@example.com`;
+    case 'image':
+      return `https://i.pravatar.cc/150?u=${i}`;
+    case 'textarea':
+      return `This is a sample description for ${label} ${i}. It contains enough text to test multi-line rendering.`;
+    default: 
+      return `${label}-${i}`;
+  }
+};
+
+export const useJustInTimeSeeder = (dataId: string, resourceDef?: ResourceDefinition | null) => {
+  return useMemo(() => {
+    // 1. Priority: Static Data (The "Golden Copy")
+    // If the developer has manually added data to mockData.ts, always use that.
+    const staticData = getMockData(dataId);
+    if (staticData && staticData.length > 0) {
+      return staticData;
+    }
+
+    // 2. Fallback: JIT Generation (The "Safety Net")
+    // If we have a schema but no data, generate it now.
+    if (resourceDef) {
+      console.log(`🌱 [JIT Seeder] Generating 5 mock records for: ${dataId}`);
+      
+      return Array.from({ length: 5 }).map((_, idx) => {
+        const row: Record<string, any> = { 
+          // Generate a robust ID that won't collide with future real IDs
+          id: `jit_${dataId}_${idx + 1}` 
+        };
+        
+        resourceDef.fields.forEach(field => {
+          // Don't overwrite ID if it was part of the fields list
+          if (field.key !== 'id') {
+            row[field.key] = generateValue(field, idx);
+          }
+        });
+        
+        return row;
+      });
+    }
+
+    // 3. Empty State (If no schema is found)
+    return [];
+  }, [dataId, resourceDef]);
+};
+</file>
+
+<file path="template/src/engine/runtime/useLiveBridge.ts">
+import { useState, useEffect, useRef } from 'react';
+import { appManifest as staticManifest } from '../../config/app.manifest';
+import type { AppSpecification } from '../validation/schema';
+
+export const useLiveBridge = () => {
+  // 1. Initialize with Static Data (Fallback)
+  const [manifest, setManifest] = useState<AppSpecification>(staticManifest);
+  const [isLive, setIsLive] = useState(false);
+  
+  // Use a ref to ensure listeners aren't duplicated in StrictMode
+  const isListening = useRef(false);
+
+  useEffect(() => {
+    if (isListening.current) return;
+    isListening.current = true;
+
+    const handleMessage = (event: MessageEvent) => {
+      // Optional Security Check: if (event.origin !== "http://localhost:3000") return;
+
+      if (event.data?.type === 'RAMME_SYNC_MANIFEST') {
+        const payload = event.data.payload;
+        setManifest(payload);
+        setIsLive(true);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    
+    // ✅ CRITICAL FIX: The Global Handshake Guard
+    // Prevents infinite loops if the component remounts
+    if (window.parent !== window && !(window as any).__RAMME_HANDSHAKE_SENT) {
+       console.log("🔌 [Bridge] Sending Ready Signal...");
+       window.parent.postMessage({ type: 'RAMME_CLIENT_READY' }, '*');
+       (window as any).__RAMME_HANDSHAKE_SENT = true; 
+    }
+
+    return () => {
+        window.removeEventListener('message', handleMessage);
+        isListening.current = false;
+    };
+  }, []);
+
+  return { manifest, isLive };
+};
+</file>
+
+<file path="template/src/features/visualizations/SmartChart.tsx">
+import React, { useMemo } from 'react';
+import { 
+  BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
+} from 'recharts';
+import { Card } from '@ramme-io/ui';
+import { BarChart3, Bug } from 'lucide-react';
+
+interface SmartChartProps {
+  rowData?: any[];
+  chartType?: 'bar' | 'line' | 'area' | 'pie';
+  xAxis?: string;        
+  yAxis?: string;        
+  aggregation?: string;
+  title?: string;
+  className?: string;
+}
+
+const COLORS = ['#0ea5e9', '#22c55e', '#eab308', '#ef4444', '#8b5cf6'];
+
+export const SmartChart: React.FC<SmartChartProps> = ({ 
+  rowData = [], chartType = 'bar', xAxis, yAxis, aggregation = 'none', title, className 
+}) => {
+  
+  // 1. DATA PROCESSING ENGINE
+  const processedData = useMemo(() => {
+    if (!rowData || rowData.length === 0) return [];
+
+    // Fallback: If no xAxis provided, try to find a string key, else use 'id'
+    const activeX = xAxis || Object.keys(rowData[0]).find(k => typeof rowData[0][k] === 'string') || 'id';
+    
+    // Normalize mode
+    const mode = aggregation?.toLowerCase() || 'none';
+
+    // SCENARIO A: COUNT
+    if (mode === 'count') {
+      const counts: Record<string, number> = {};
+      rowData.forEach(row => {
+        const rawVal = row[activeX];
+        // Handle Booleans (true/false) explicitly
+        const key = String(rawVal !== undefined && rawVal !== null ? rawVal : 'Unknown');
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      return Object.entries(counts).map(([name, value]) => ({ name, value }));
+    }
+
+    // SCENARIO B: SUM
+    if (mode === 'sum' && yAxis) {
+      const sums: Record<string, number> = {};
+      rowData.forEach(row => {
+        const key = String(row[activeX] ?? 'Unknown');
+        const val = Number(row[yAxis]) || 0;
+        sums[key] = (sums[key] || 0) + val;
+      });
+      return Object.entries(sums).map(([name, value]) => ({ name, value }));
+    }
+
+    // SCENARIO C: RAW
+    return rowData.map(row => ({
+      name: String(row[activeX] ?? ''),
+      value: yAxis ? Number(row[yAxis]) : 0
+    }));
+
+  }, [rowData, xAxis, yAxis, aggregation]);
+
+  // 2. RENDERERS
+  const renderChart = () => {
+    // If no data to render, show placeholder
+    if (processedData.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-50">
+                <BarChart3 size={32} />
+                <span className="text-xs mt-2">No Data Available</span>
+            </div>
+        );
+    }
+
+    const type = chartType?.toLowerCase() || 'bar';
+    switch (type) {
+      case 'pie':
+        return (
+          <PieChart>
+            <Pie data={processedData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+              {processedData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+            </Pie>
+            <Tooltip />
+            <Legend verticalAlign="bottom" height={36}/>
+          </PieChart>
+        );
+      case 'line':
+        return (
+          <LineChart data={processedData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis fontSize={12} tickLine={false} axisLine={false} />
+            <Tooltip />
+            <Line type="monotone" dataKey="value" stroke="#0ea5e9" strokeWidth={3} dot={{r:4}} />
+          </LineChart>
+        );
+      case 'area':
+        return (
+           <AreaChart data={processedData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis fontSize={12} tickLine={false} axisLine={false} />
+            <Tooltip />
+            <Area type="monotone" dataKey="value" stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.2} />
+          </AreaChart>
+        );
+      case 'bar': default:
+        return (
+          <BarChart data={processedData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis fontSize={12} tickLine={false} axisLine={false} />
+            <Tooltip cursor={{ fill: '#f1f5f9' }} />
+            <Bar dataKey="value" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        );
+    }
+  };
+
+  return (
+    <Card className={`p-4 flex flex-col h-full bg-white border border-border shadow-sm ${className}`}>
+      {/* Title Header */}
+      <div className="flex items-center justify-between mb-4">
+         <div className="flex flex-col">
+            {title && <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h3>}
+            {/* Subtitle with Aggregation info */}
+            {aggregation && aggregation !== 'none' && (
+                <span className="text-[10px] text-muted-foreground font-mono">
+                    BY {aggregation.toUpperCase()} ({xAxis})
+                </span>
+            )}
+         </div>
+      </div>
+
+      {/* Chart Canvas */}
+      <div className="flex-1 w-full min-h-[200px]">
+        <ResponsiveContainer width="100%" height="100%">{renderChart()}</ResponsiveContainer>
+      </div>
+
+      {/* ✅ DEBUG CONSOLE (Collapsible) */}
+      <div className="mt-4 border-t border-border pt-2">
+         <details className="text-[10px] text-muted-foreground group">
+            <summary className="cursor-pointer hover:text-primary flex items-center gap-2 select-none font-mono">
+               <Bug size={12} />
+               <span>Debug Configuration</span>
+               <span className="ml-auto opacity-50">{rowData?.length || 0} Rows</span>
+            </summary>
+            <div className="mt-2 p-3 bg-slate-950 text-green-400 rounded-md font-mono overflow-x-auto text-[10px] leading-relaxed shadow-inner">
+               <div className="mb-2 pb-2 border-b border-white/10">
+                  <span className="text-white font-bold block mb-1">INCOMING PROPS:</span>
+                  <div>chartType: <span className="text-yellow-300">"{chartType}"</span></div>
+                  <div>aggregation: <span className="text-yellow-300">"{aggregation}"</span></div>
+                  <div>xAxis (Key): <span className="text-yellow-300">"{xAxis}"</span></div>
+                  <div>yAxis (Val): <span className="text-yellow-300">"{yAxis}"</span></div>
+               </div>
+               
+               <div className="mb-2 pb-2 border-b border-white/10">
+                  <span className="text-white font-bold block mb-1">DATA SNAPSHOT (Row 0):</span>
+                  {rowData && rowData.length > 0 ? (
+                      <pre>{JSON.stringify(rowData[0], null, 2)}</pre>
+                  ) : (
+                      <span className="text-red-400">No Data Rows Received</span>
+                  )}
+               </div>
+
+               <div>
+                  <span className="text-white font-bold block mb-1">PROCESSED OUTPUT (Top 3):</span>
+                  <pre>{JSON.stringify(processedData.slice(0, 3), null, 2)}</pre>
+               </div>
+            </div>
+         </details>
+      </div>
+    </Card>
+  );
+};
+</file>
+
+<file path="template/public/api_mock.json">
+{
+  "meta": {
+    "status": 200,
+    "region": "us-east-1"
+  },
+  "data": {
+    "finance": {
+      "mrr": 99999.00,
+      "growth": 0.12
+    },
+    "users": {
+      "total": 1245,
+      "active": 890
+    }
+  }
+}
+</file>
+
+<file path="template/public/vite.svg">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
+</file>
+
+<file path="template/src/assets/react.svg">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+</file>
+
+<file path="template/src/components/AddItemsModal.tsx">
+import React, { useMemo } from 'react';
+import {
+  Modal,
+  Button,
+  SearchInput,
+  DataTable,
+  Checkbox,
+  type ColDef
+} from '@ramme-io/ui';
+
+// Mock data is fine as is
+const mockData = [
+  { id: 34561, name: 'Item Name 1', color: 'Blue' },
+  { id: 76552, name: 'Item Name 2', color: 'Red' },
+  { id: 54364, name: 'Item Name 3', color: 'Yellow' },
+  { id: 87655, name: 'Item Name 3', color: 'Red' },
+  { id: 98676, name: 'Item Name 3', color: 'Yellow' },
+];
+
+interface AddItemsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const AddItemsModal: React.FC<AddItemsModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const [selectedCount, setSelectedCount] = React.useState(0);
+
+  // --- FIX: Use AG Grid's column definition format ---
+  const columnDefs = useMemo<ColDef[]>(() => [
+    {
+      headerName: 'Name',
+      field: 'name', // Use 'field' instead of 'accessor'
+      // AG Grid uses cellRenderer for custom components
+      cellRenderer: (params: any) => (
+        <div className="flex items-center">
+          {params.value}
+        </div>
+      ),
+      // Add a custom header component for the "select all" checkbox
+      headerCheckboxSelection: true,
+      checkboxSelection: true,
+    },
+    {
+      headerName: 'ID', // Use 'headerName' instead of 'Header'
+      field: 'id',
+    },
+    {
+      headerName: 'Color',
+      field: 'color',
+    },
+  ], []);
+
+  const modalFooter = (
+    <div className="flex items-center justify-between w-full">
+      <div className="font-bold">{`(${selectedCount}) Selected`}</div>
+      <div className="flex gap-2">
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary">Add Items</Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add Items"
+      footer={modalFooter}
+    >
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Select Item(s)</h3>
+        <SearchInput placeholder="Search by name" />
+        <DataTable
+          // --- FIX: Use the correct prop names ---
+          columnDefs={columnDefs}
+          rowData={mockData}
+          rowSelection="multiple" // Enable row selection
+          onSelectionChanged={(event) => {
+            setSelectedCount(event.api.getSelectedRows().length);
+          }}
+        />
+      </div>
+    </Modal>
+  );
+};
+</file>
+
+<file path="template/src/components/AppFooter.tsx">
+// src/components/AppFooter.tsx
+import React from 'react';
+
+const AppFooter: React.FC = () => {
+  return (
+    <footer className="py-6 text-center text-muted-foreground">
+      <p>&copy; {new Date().getFullYear()} Ramme. All Rights Reserved.</p>
+    </footer>
+  );
+};
+
+export default AppFooter;
+</file>
+
+<file path="template/src/components/HashLinkScroll.tsx">
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
+/**
+ * A component that listens for hash changes in the URL and smoothly
+ * scrolls the corresponding element into view.
+ */
+const HashLinkScroll = () => {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (hash) {
+      // We need to remove the '#' from the hash string
+      const id = hash.substring(1);
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [hash]); // Re-run this effect whenever the hash changes
+
+  // This component does not render any UI
+  return null;
+};
+
+export default HashLinkScroll;
+</file>
 
 <file path="template/src/components/NotFound.tsx">
 // src/pages/NotFound.tsx
@@ -245,6 +935,58 @@ const ScrollToTop = () => {
 export default ScrollToTop;
 </file>
 
+<file path="template/src/components/TemplateSwitcher.tsx">
+/**
+ * @file TemplateSwitcher.tsx
+ * @repository ramme-app-starter
+ * @description A reusable component to switch between application templates.
+ */
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+
+const TemplateSwitcher: React.FC = () => {
+  const location = useLocation();
+  const isDashboard = location.pathname.startsWith('/dashboard');
+  const isDocs = location.pathname.startsWith('/docs');
+  const isSettings = location.pathname.startsWith('/settings');
+
+  return (
+    <div className="bg-muted text-muted-foreground p-1 rounded-md text-sm flex items-center gap-1">
+      <Link
+        to="/dashboard"
+        className={`px-3 py-1 rounded ${
+          isDashboard
+            ? 'bg-background shadow-sm text-foreground font-semibold'
+            : ''
+        }`}
+      >
+        Dashboard
+      </Link>
+      <Link
+        to="/docs"
+        className={`px-3 py-1 rounded ${
+          isDocs ? 'bg-background shadow-sm text-foreground font-semibold' : ''
+        }`}
+      >
+        Docs
+      </Link>
+      <Link
+        to="/settings"
+        className={`px-3 py-1 rounded ${
+          isSettings
+            ? 'bg-background shadow-sm text-foreground font-semibold'
+            : ''
+        }`}
+      >
+        Settings
+      </Link>
+    </div>
+  );
+};
+
+export default TemplateSwitcher;
+</file>
+
 <file path="template/src/config/component-registry.tsx">
 import React from 'react';
 import {
@@ -257,36 +999,37 @@ import {
   Card,
   Alert,
   EmptyState,
-  ToggleSwitch
+  ToggleSwitch,
+  Button // Ensure Button is imported if used
 } from '@ramme-io/ui';
 
 // ✅ IMPORT YOUR CUSTOM COMPONENT
 import { SmartTable } from '../features/datagrid/SmartTable';
+import { SmartChart } from '../features/visualizations/SmartChart';
 
 export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
-  // IoT Primitives
+  // --- 1. Standard PascalCase Names (Keep these) ---
   DeviceCard,
-  
-  // Data Display
   StatCard,
   BarChart,
   LineChart,
   PieChart,
-  
-  // Tables
-  DataTable, // The raw grid
-  
-  // ✅ FIX: Map "SmartTable" to the actual SmartTable component
-  // (Previously it was aliased to DataTable, which broke the UI)
-  SmartTable: SmartTable, 
-  
-  // Layout & Feedback
+  DataTable,
+  SmartTable,
+  SmartChart,
   Card,
   Alert,
   EmptyState,
-  
-  // Forms/Controls
-  ToggleSwitch
+  ToggleSwitch,
+
+  // --- 2. ✅ ALIASES FOR BUILDER (snake_case -> Component) ---
+  'stat_card': StatCard,     // Fixes "Unknown Component: stat_card"
+  'chart_line': LineChart,   // Fixes "Unknown Component: chart_line"
+  'chart_bar': BarChart,     // Future-proofing
+  'chart_pie': PieChart,     // Future-proofing
+  'smart_table': SmartTable, // Future-proofing
+  'smart_chart': SmartChart, // Future-proofing
+  'button': Button || ((props: any) => <button {...props} />), // Fallback if Button isn't in UI lib
 };
 
 export const getComponent = (name: string) => {
@@ -304,11 +1047,31 @@ export const getComponent = (name: string) => {
 };
 </file>
 
+<file path="template/src/data/mockLedger.ts">
+export interface LedgerEntry {
+  category: 'Revenue' | 'Cost of Goods Sold' | 'Operating Expenses';
+  account: string;
+  actual: number;
+  budget: number;
+}
+
+export const mockLedgerData: LedgerEntry[] = [
+  // --- Raw Data Only ---
+  { category: 'Revenue', account: 'Product Sales', actual: 125000, budget: 120000 },
+  { category: 'Revenue', account: 'Service Fees', actual: 32000, budget: 35000 },
+  { category: 'Cost of Goods Sold', account: 'Raw Materials', actual: -45000, budget: -42000 },
+  { category: 'Cost of Goods Sold', account: 'Direct Labor', actual: -28000, budget: -30000 },
+  { category: 'Operating Expenses', account: 'Marketing', actual: -12000, budget: -10000 },
+  { category: 'Operating Expenses', account: 'Salaries & Wages', actual: -55000, budget: -55000 },
+  { category: 'Operating Expenses', account: 'Rent & Utilities', actual: -8500, budget: -8000 },
+];
+</file>
+
 <file path="template/src/engine/renderers/DynamicBlock.tsx">
 import React from 'react';
 import { getComponent } from '../../config/component-registry';
 // @ts-ignore
-import { useGeneratedSignals } from '../generated/hooks';
+import { useGeneratedSignals } from '../runtime/useSignalStore';
 import { getMockData } from '../../data/mockData';
 
 /**
@@ -388,120 +1151,156 @@ export const DynamicBlock: React.FC<any> = ({ block }) => {
 </file>
 
 <file path="template/src/engine/renderers/DynamicPage.tsx">
-import React from 'react';
-import { PageHeader, Alert, Button, Icon } from '@ramme-io/ui';
-import { appManifest } from '../../config/app.manifest';
-// Reuse the GhostOverlay for structure visualization
-import { GhostOverlay } from '../../features/developer/GhostOverlay';
-// Import the Worker Bee
-import { DynamicBlock } from './DynamicBlock';
-// Import the Hook to control the overlay
-import { useDevTools } from '../../features/developer/useDevTools';
+import React, { Component, type ErrorInfo, useMemo } from 'react';
+import { PageHeader, Alert, Badge } from '@ramme-io/ui';
+import { useManifest, useBridgeStatus } from '../runtime/ManifestContext';
+import { getComponent } from '../../config/component-registry';
+import { getMockData } from '../../data/mockData'; // Keep as fallback
+import { Wifi, WifiOff, AlertTriangle, Loader2, Database, Wand2 } from 'lucide-react';
 
-/**
- * @file DynamicPage.tsx
- * @description The "Layout Engine" of the application.
- *
- * ARCHITECTURAL ROLE:
- * This component is the bridge between the Abstract JSON Manifest and the Concrete DOM.
- * It acts as the "General Contractor," taking the blueprint (Manifest) and instructing
- * the workers (DynamicBlock) where to build.
- *
- * HIERARCHY:
- * App -> Routes -> DynamicPage -> (Iterates Sections) -> DynamicBlock -> (Actual Component)
- *
- * KEY FEATURES:
- * 1. **Manifest Lookup:** Uses the `pageId` prop to find the correct configuration in `app.manifest.ts`.
- * 2. **Grid Composition:** Translates abstract layout numbers (e.g., `columns: 3`) into real CSS Grid styles.
- * 3. **DevTools Integration:** Wraps blocks in `GhostOverlay` (when enabled) to visualize the
- * hidden boundaries and signal connections during development.
- */
+// --- 🛠️ JIT DATA GENERATOR ---
+// This ensures the preview ALWAYS has data, even for new resources not yet in the DB.
+const generateJitData = (resourceDef: any, count = 10) => {
+  if (!resourceDef) return [];
+  
+  return Array.from({ length: count }).map((_, i) => {
+    const row: any = { id: i + 1 };
+    resourceDef.fields.forEach((f: any) => {
+      // Intelligent Mocking based on field type
+      if (f.type === 'status') {
+        row[f.key] = ['Active', 'Pending', 'Closed', 'Archived'][Math.floor(Math.random() * 4)];
+      } else if (f.type === 'boolean') {
+        row[f.key] = Math.random() > 0.3; // 70% true
+      } else if (f.type === 'number' || f.type === 'currency') {
+        row[f.key] = Math.floor(Math.random() * 1000) + 100;
+      } else if (f.type === 'date') {
+        const d = new Date();
+        d.setDate(d.getDate() - Math.floor(Math.random() * 30));
+        row[f.key] = d.toISOString().split('T')[0];
+      } else {
+        row[f.key] = `${f.label} ${i + 1}`;
+      }
+    });
+    return row;
+  });
+};
 
-interface DynamicPageProps {
-  pageId: string;
+// --- ERROR BOUNDARY ---
+class BlockErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, error: string }> {
+  constructor(props: any) { super(props); this.state = { hasError: false, error: '' }; }
+  static getDerivedStateFromError(error: any) { return { hasError: true, error: error.message }; }
+  render() {
+    if (this.state.hasError) return (
+        <div className="h-full min-h-[100px] p-4 border-2 border-dashed border-red-300 bg-red-50/50 rounded-lg flex flex-col items-center justify-center text-red-600 text-xs">
+          <AlertTriangle size={16} className="mb-2 opacity-80" />
+          <span className="font-bold">Render Error</span>
+          <span className="opacity-75 text-center truncate max-w-[200px]">{this.state.error}</span>
+        </div>
+    );
+    return this.props.children;
+  }
 }
 
-export const DynamicPage: React.FC<DynamicPageProps> = ({ pageId }) => {
-  // 1. Initialize DevTools
-  const { isGhostMode, toggleGhostMode } = useDevTools();
+// --- MAIN RENDERER ---
+export const DynamicPage = ({ pageId }: { pageId: string }) => {
+  const manifest = useManifest();
+  const status = useBridgeStatus();
+  const isLive = status === 'live';
 
-  // 2. Look up the page definition
-  const pageConfig = (appManifest as any).pages?.find((p: any) => p.id === pageId);
+  const page = useMemo(() => manifest.pages?.find((p: any) => p.id === pageId), [manifest, pageId]);
 
-  if (!pageConfig) {
+  if (!page) {
     return (
-      <div className="p-8">
-        <Alert variant="danger" title="Page Not Found">
-          The manifest does not contain a page with ID: <code>{pageId}</code>.
-        </Alert>
+      <div className="p-8 space-y-4">
+         <Alert variant="info" title="Connecting..."><Loader2 className="animate-spin mr-2" size={16} /> Loading Page...</Alert>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 fade-in p-6">
-      <PageHeader 
-        title={pageConfig.title} 
-        description={pageConfig.description}
-        actions={
-          <Button 
-            variant={isGhostMode ? 'accent' : 'outline'} 
-            size="sm"
-            onClick={toggleGhostMode}
-            title="Toggle Ghost Mode (Ctrl+Shift+G)"
-          >
-            <Icon name={isGhostMode ? 'eye' : 'eye-off'} className="mr-2" />
-            {isGhostMode ? 'Ghost Mode: ON' : 'Dev Tools'}
-          </Button>
-        }
-      />
-
-      {/* 4. Render Sections */}
-      {pageConfig.sections.map((section: any) => (
-        <div key={section.id} className="space-y-4">
-          {section.title && <h3 className="text-xl font-semibold">{section.title}</h3>}
-          
-          <div 
-            className="grid gap-6"
-            style={{ 
-              // ⚡️ IMPROVEMENT: Default to 1 column (Full Width) instead of 3.
-              // This fixes the "narrow table" issue immediately.
-              gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` 
-            }}
-          >
-            {section.blocks.map((block: any) => {
-              // ⚡️ IMPROVEMENT: Calculate Spanning
-              // Allows a block to stretch across multiple columns if needed.
-              const colSpan = block.layout?.colSpan || 1;
-              const rowSpan = block.layout?.rowSpan || 1;
-
-              return (
-                <div 
-                  key={block.id}
-                  style={{ 
-                    gridColumn: `span ${colSpan}`,
-                    gridRow: `span ${rowSpan}`
-                  }}
-                >
-                   <GhostOverlay 
-                     isActive={isGhostMode}
-                     componentId={block.id} 
-                     componentType={block.type}
-                     signalId={block.props.signalId}
-                   >
-                     <DynamicBlock block={block} />
-                   </GhostOverlay>
-                </div>
-              );
-            })}
-          </div>
+    <div className="space-y-8 animate-in fade-in duration-300 pb-20 p-6 md:p-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-border pb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{page.title}</h1>
+          {page.description && <p className="text-muted-foreground text-lg">{page.description}</p>}
         </div>
-      ))}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${isLive ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500'}`}>
+          {isLive ? <Wifi size={14} className="text-green-600 animate-pulse"/> : <WifiOff size={14} />}
+          {isLive ? 'LIVE PREVIEW' : 'STATIC MODE'}
+        </div>
+      </div>
+      
+      {/* Grid Layout */}
+      <div className="grid gap-8">
+        {page.sections?.map((section: any) => (
+          <section key={section.id} className="space-y-4">
+            {section.title && (
+              <div className="flex items-center gap-2 pb-2 border-b border-dashed border-gray-200">
+                 <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{section.title}</h3>
+              </div>
+            )}
+            <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` }}>
+              {section.blocks.map((block: any) => {
+                const Component = getComponent(block.type);
+                const safeDataId = block.props.dataId?.toLowerCase();
+                
+                // --- 🛡️ HYBRID DATA STRATEGY ---
+                let resolvedData: any[] = [];
+                let isGenerated = false;
+                let autoColumns = undefined;
+
+                if (safeDataId) {
+                  // 1. Try Local Storage first
+                  resolvedData = getMockData(safeDataId); 
+                  
+                  // 2. If empty, Generate JIT Data from Manifest
+                  if (!resolvedData || resolvedData.length === 0) {
+                     const resourceDef = manifest.resources?.find((r: any) => r.id.toLowerCase() === safeDataId);
+                     if (resourceDef) {
+                        resolvedData = generateJitData(resourceDef);
+                        isGenerated = true; // Flag for debug overlay
+                     }
+                  }
+
+                  // 3. Auto-Generate Table Columns
+                  const resourceDef = manifest.resources?.find((r: any) => r.id.toLowerCase() === safeDataId);
+                  if (resourceDef && !block.props.columnDefs) {
+                    autoColumns = resourceDef.fields.map((f: any) => ({
+                      field: f.key, headerName: f.label, filter: true, flex: 1,
+                      cellRenderer: f.type === 'status' ? (p: any) => <Badge variant="secondary">{p.value}</Badge> : undefined
+                    }));
+                  }
+                }
+
+                return (
+                  <div key={block.id} style={{ gridColumn: `span ${block.layout?.colSpan || 1}`, gridRow: `span ${block.layout?.rowSpan || 1}` }} className="relative group">
+                     <BlockErrorBoundary>
+                        {/* Debug Overlay */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1 pointer-events-none">
+                           <div className={`text-white text-[10px] px-2 py-1 rounded backdrop-blur-md flex items-center gap-1 ${isGenerated ? 'bg-amber-600/90' : 'bg-black/80'}`}>
+                              {block.type}
+                              {safeDataId && <> <span className="opacity-50">|</span> {isGenerated ? <Wand2 size={10}/> : <Database size={10}/>} {safeDataId} ({resolvedData.length})</>}
+                           </div>
+                        </div>
+                        
+                        <Component 
+                           {...block.props} 
+                           rowData={resolvedData} 
+                           columnDefs={block.props.columnDefs || autoColumns}
+                           className="w-full h-full shadow-sm bg-card rounded-xl border border-border" 
+                        />
+                     </BlockErrorBoundary>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 };
-
-export default DynamicPage;
 </file>
 
 <file path="template/src/engine/renderers/route-generator.tsx">
@@ -555,8 +1354,6 @@ export const generateRoutes = (routes: SitemapEntry[]) => {
 </file>
 
 <file path="template/src/engine/runtime/data-seeder.ts">
-// src/core/data-seeder.ts
-
 // ✅ Match the export from your new mockData.ts
 import { DATA_REGISTRY } from '../../data/mockData'; 
 
@@ -567,8 +1364,10 @@ import { DATA_REGISTRY } from '../../data/mockData';
  * This utility ensures that the LocalStorage "Data Lake" is never empty.
  * On app launch, it checks if data exists. If not, it writes the seed data
  * from `mockData.ts` into the browser's storage.
- * * This allows the app to feel "alive" with data immediately after installation.
  */
+
+// 🔒 SHARED CONSTANT: Ensure everyone uses the same key format
+const DB_PREFIX = 'ramme_mock_'; 
 
 export const initializeDataLake = () => {
   if (typeof window === 'undefined') return;
@@ -576,12 +1375,12 @@ export const initializeDataLake = () => {
   console.groupCollapsed('🌊 [Data Lake] Initialization');
   
   Object.entries(DATA_REGISTRY).forEach(([key, seedData]) => {
-    // ⚠️ REMOVED PREFIX ('ramme_db_') so it matches AuthContext
-    const storageKey = key; 
+    // ✅ FIX: Use the prefix so getMockData() can find it
+    const storageKey = `${DB_PREFIX}${key}`; 
     const existing = localStorage.getItem(storageKey);
 
     if (!existing) {
-      console.log(`✨ Seeding collection: ${key} (${seedData.length} records)`);
+      console.log(`✨ Seeding collection: ${key} (${(seedData as any[]).length} records)`);
       localStorage.setItem(storageKey, JSON.stringify(seedData));
     } else {
       console.log(`✅ Collection exists: ${key}`);
@@ -596,8 +1395,10 @@ export const initializeDataLake = () => {
  */
 export const resetDataLake = () => {
   Object.keys(DATA_REGISTRY).forEach((key) => {
-    localStorage.removeItem(key); // Matches the storageKey above
+    const storageKey = `${DB_PREFIX}${key}`;
+    localStorage.removeItem(storageKey); 
   });
+  console.log("🔥 Data Lake Evaporated (Cleared)");
   window.location.reload();
 };
 </file>
@@ -605,7 +1406,9 @@ export const resetDataLake = () => {
 <file path="template/src/engine/runtime/MqttContext.tsx">
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import mqtt, { type MqttClient } from 'mqtt';
-import { appManifest } from '../../config/app.manifest'; // ✅ Connect to the Single Source of Truth
+// ❌ REMOVED: import { appManifest } from '../../config/app.manifest';
+// ✅ ADDED: Live Context
+import { useManifest } from './ManifestContext';
 
 interface MqttContextType {
   isConnected: boolean;
@@ -617,44 +1420,38 @@ interface MqttContextType {
 
 const MqttContext = createContext<MqttContextType | null>(null);
 
-/**
- * @file MqttContext.tsx
- * @description The Real-Time Connectivity Layer.
- *
- * ARCHITECTURAL ROLE:
- * This provider establishes a persistent WebSocket connection to the MQTT Broker
- * defined in `app.manifest.ts`.
- *
- * KEY FEATURES:
- * 1. **Global Connection:** Maintains one connection for the whole app (Singleton pattern).
- * 2. **Topic Management:** specific components (like DeviceCard) can subscribe to
- * specific topics on demand using `subscribe()`.
- * 3. **State Distribution:** Broadcasts the latest messages to any component using `useMqtt()`.
- */
-
 export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<Record<string, string>>({});
   const clientRef = useRef<MqttClient | null>(null);
   const subscriptions = useRef<Set<string>>(new Set());
 
+  // ✅ 1. Consume Live Manifest
+  const appManifest = useManifest();
+
   useEffect(() => {
-    // ✅ Load Broker URL from the Manifest Config
+    // ✅ 2. Hot-Swap Broker Connection
+    // If you change the Broker URL in the Builder, this effect will re-run!
     const brokerUrl = appManifest.config.brokerUrl || 'wss://test.mosquitto.org:8081';
     console.log(`[MQTT] Connecting to ${brokerUrl}...`);
     
+    // Disconnect previous if exists
+    if (clientRef.current) {
+        clientRef.current.end();
+    }
+
     const client = mqtt.connect(brokerUrl);
     clientRef.current = client;
 
     client.on('connect', () => {
       console.log('[MQTT] Connected ✅');
       setIsConnected(true);
+      // Re-subscribe to previous topics if needed
+      subscriptions.current.forEach(t => client.subscribe(t));
     });
 
-    // ✅ FIX: Proper typing for MQTT payload (Buffer)
     client.on('message', (topic: string, payload: Buffer) => {
       const messageStr = payload.toString();
-      // console.log(`[MQTT] Msg: ${topic} -> ${messageStr}`); // Optional debug
       setLastMessage((prev) => ({ ...prev, [topic]: messageStr }));
     });
 
@@ -667,11 +1464,10 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[MQTT] Disconnecting...');
       client.end();
     };
-  }, []);
+  }, [appManifest.config.brokerUrl]); // Only re-connect if URL changes
 
   const subscribe = (topic: string) => {
     if (clientRef.current && !subscriptions.current.has(topic)) {
-      console.log(`[MQTT] Subscribing to: ${topic}`);
       clientRef.current.subscribe(topic);
       subscriptions.current.add(topic);
     }
@@ -771,37 +1567,26 @@ export const SitemapProvider = SitemapContext.Provider;
 <file path="template/src/engine/runtime/useAction.ts">
 import { useCallback } from 'react';
 import { useMqtt } from './MqttContext';
-// ✅ User Verified Path
-import { appManifest } from '../../config/app.manifest';
-
-/**
- * @file useAction.ts
- * @description The "Effectuator" hook.
- *
- * ARCHITECTURAL ROLE:
- * This hook handles outgoing commands from the UI. It abstracts the transport layer,
- * automatically routing actions to the correct destination (MQTT, HTTP, or Mock Console)
- * based on the entity's configuration in the manifest.
- */
+// ❌ REMOVED: import { appManifest } from '../../config/app.manifest';
+// ✅ ADDED: Live Context
+import { useManifest } from './ManifestContext';
 
 export const useAction = () => {
   const { publish, isConnected } = useMqtt();
   
-  // Destructure config/domain from the manifest
+  // ✅ 1. Consume Live Manifest
+  const appManifest = useManifest();
   const { config, domain } = appManifest;
 
   const sendAction = useCallback(async (entityId: string, value: any) => {
-    // 1. Find the Entity definition
-    // Note: If domain.entities is empty (early stage), this is where we'd add fallback logic
+    // 2. Find the Entity definition (Live)
     const entity = domain.entities.find(e => e.id === entityId);
     
     if (!entity) {
-      // For development/debugging, we log this even if the entity is missing
       console.warn(`[Action] Entity ID '${entityId}' not found in manifest.`);
       return;
     }
 
-    // 2. Find the Primary Signal (The target of the action)
     const signalId = entity.signals[0];
     const signal = domain.signals.find(s => s.id === signalId);
 
@@ -810,8 +1595,6 @@ export const useAction = () => {
       return;
     }
 
-    // 3. EXECUTE based on Mode & Source
-    
     // --- Mock Mode ---
     if (config.mockMode) {
       console.log(`%c[Mock Action] Setting ${entity.name} to:`, 'color: #10b981; font-weight: bold;', value);
@@ -831,7 +1614,6 @@ export const useAction = () => {
 
     // --- Live Mode (HTTP) ---
     if (signal.source === 'http' && signal.endpoint) {
-      console.log(`[HTTP] POST to ${signal.endpoint}:`, value);
       try {
         await fetch(signal.endpoint, {
             method: 'POST',
@@ -839,7 +1621,7 @@ export const useAction = () => {
             body: JSON.stringify({ id: signal.id, value })
         });
       } catch (err) {
-        console.log('[HTTP] (Simulation) Request sent.'); 
+        console.log('[HTTP] (Simulation) Request sent.');
       }
     }
 
@@ -1038,8 +1820,9 @@ export function useDataQuery<T>(
 <file path="template/src/engine/runtime/useSignal.ts">
 import { useMemo } from 'react';
 import { useSignalStore } from './useSignalStore';
-// ✅ Import Manifest to get static metadata (min, max, units)
-import { appManifest } from '../../config/app.manifest';
+// ❌ REMOVED: import { appManifest } from '../../config/app.manifest';
+// ✅ ADDED: Live Context
+import { useManifest } from './ManifestContext';
 
 export interface SignalState {
   id: string;
@@ -1048,33 +1831,21 @@ export interface SignalState {
   min?: number;
   max?: number;
   timestamp?: number;
-  status: 'fresh' | 'stale'; // Simplified status
+  status: 'fresh' | 'stale';
 }
 
-/**
- * @hook useSignal
- * @description The "Signal Selector".
- *
- * ARCHITECTURAL ROLE:
- * This hook is the bridge between the Static Manifest and the Dynamic Store.
- * 1. It finds the signal definition in the Manifest (for min/max/unit).
- * 2. It grabs the live value from the Zustand SignalStore.
- * 3. It merges them into a single object for the UI to consume.
- */
 export const useSignal = (signalId: string): SignalState => {
-  // 1. Get Live Data from Store
-  const signalData = useSignalStore((state: { signals: { [x: string]: any; }; }) => state.signals[signalId]);
+  const signalData = useSignalStore((state) => state.signals[signalId]);
+  
+  // ✅ 1. Consume Live Manifest
+  const appManifest = useManifest();
 
-  // 2. Get Static Definition from Manifest
-  // We use useMemo so we don't search the array on every render
+  // 2. Get Static Definition from Manifest (Live)
   const signalDef = useMemo(() => {
     return appManifest.domain.signals.find((s) => s.id === signalId);
-  }, [signalId]);
+  }, [signalId, appManifest]); // Re-run if manifest updates
 
-  // 3. Merge and Return
   const value = signalData?.value ?? signalDef?.defaultValue ?? 0;
-  
-  // Determine if data is stale (older than 10 seconds)
   const isStale = signalData ? (Date.now() - signalData.timestamp > 10000) : true;
 
   return {
@@ -1189,123 +1960,70 @@ export const useSimulation = (isEnabled: boolean = true) => {
 <file path="template/src/engine/runtime/useWorkflowEngine.ts">
 import { useEffect } from 'react';
 import { useToast } from '@ramme-io/ui';
-// ✅ 1. Correct Imports from Store
 import { useGeneratedSignals, useSimulation } from './useSignalStore';
-// ✅ 2. Correct Import from Manifest
-import { appManifest } from '../../config/app.manifest';
+// ❌ REMOVED: import { appManifest } from '../../config/app.manifest';
+// ✅ ADDED: Live Context
+import { useManifest } from './ManifestContext';
 
-// Minimal Types for internal use (until schema is formalized)
-interface ActionDefinition {
-  type: string;
-  config: Record<string, any>;
-}
+// ... (Interfaces can remain the same) ...
+interface ActionDefinition { type: string; config: Record<string, any>; }
+interface WorkflowDefinition { id: string; name: string; active: boolean; trigger: { type: string; config: { signalId: string; condition: string; }; }; actions: ActionDefinition[]; }
 
-interface WorkflowDefinition {
-  id: string;
-  name: string;
-  active: boolean;
-  trigger: {
-    type: string;
-    config: {
-      signalId: string;
-      condition: string;
-    };
-  };
-  actions: ActionDefinition[];
-}
-
-/**
- * THE RUNTIME LOGIC ENGINE
- * This hook breathes life into the application.
- * It watches for signal changes and executes the workflows defined in the manifest.
- */
 export const useWorkflowEngine = () => {
   const signals = useGeneratedSignals();
   const { addToast } = useToast();
   
-  // 1. Activate the Data Simulation (Randomizer)
-  // This now checks internally if it should run (based on boolean arg)
+  // ✅ 1. Consume Live Manifest
+  const appManifest = useManifest();
+
+  // 2. Activate Simulation (Responsive to toggle)
   useSimulation(appManifest.config.mockMode);
 
-  // 2. Define the Action Executor
   const executeAction = async (action: ActionDefinition, context: any) => {
+    // ... (Same execution logic as before) ...
     console.log(`[Engine] Executing: ${action.type}`, action);
-
     switch (action.type) {
-      case 'send_notification':
-        addToast(action.config.message || 'Notification Sent', 'info');
-        break;
-
-      case 'update_resource':
-        // In a real app, this would call the API
-        addToast(`Updating Resource: ${JSON.stringify(action.config)}`, 'success');
-        break;
-
-      case 'agent_task':
-        // Simulate AI Agent processing
-        console.log(`[AI Agent] Thinking about: "${action.config.prompt}"...`);
+      case 'send_notification': addToast(action.config.message || 'Notification Sent', 'info'); break;
+      case 'update_resource': addToast(`Updating Resource: ${JSON.stringify(action.config)}`, 'success'); break;
+      case 'navigate': window.location.href = action.config.path; break;
+      case 'agent_task': 
         addToast('AI Agent Analyzing...', 'info');
-        
-        setTimeout(() => {
-          // Mock response based on prompt context
-          const response = action.config.prompt?.includes('health') 
-            ? "System Operating Normally." 
-            : "Optimization Recommended.";
-            
-          addToast(`🤖 Agent: "${response}"`, 'success', 5000);
-        }, 1500);
+        setTimeout(() => addToast('🤖 Agent: "System Nominal"', 'success', 3000), 1500);
         break;
-
-      case 'navigate':
-        window.location.href = action.config.path;
-        break;
-
-      default:
-        console.warn('Unknown action type:', action.type);
     }
   };
 
-  // 3. Watch Signals & Trigger Workflows
+  // 3. Watch Signals & Trigger Workflows (Live)
   useEffect(() => {
-    // Safety check for undefined domain/workflows
     if (!appManifest.domain?.workflows) return;
 
-    // We cast to our local type since manifest might be "any"
     (appManifest.domain.workflows as unknown as WorkflowDefinition[]).forEach((flow) => {
       if (!flow.active) return;
 
-      // Check Trigger: Signal Change
       if (flow.trigger.type === 'signal_change') {
         const signalId = flow.trigger.config.signalId;
-        const condition = flow.trigger.config.condition; // e.g., "> 80"
+        const condition = flow.trigger.config.condition;
         
+        // @ts-ignore
         const signal = signals[signalId];
         
         if (signal) {
-          const val = signal.value; // Cleaned up access
-          
+          const val = signal.value;
           try {
-            // Check if condition is met (e.g. "50 > 80")
             const isMet = checkCondition(val, condition); 
-            
-            // Debounce: In a real app, we'd check timestamps to avoid firing every 2ms
-            // For now, we rely on the simulation being slow (2s)
             if (isMet) {
               console.log(`[Engine] Trigger Fired: ${flow.name}`);
               flow.actions.forEach(action => executeAction(action, { signal: val }));
             }
-          } catch (e) {
-            // Ignore parse errors
-          }
+          } catch (e) {}
         }
       }
     });
-  }, [signals, addToast]); 
+  }, [signals, addToast, appManifest.domain.workflows]); // Added dependency
 
   return { 
-    // Exposed for manual triggering (e.g. Buttons)
     triggerWorkflow: (workflowId: string) => {
-      // @ts-ignore
+      // ✅ 4. Manual Triggers now find new workflows instantly
       const flow = appManifest.domain?.workflows?.find(w => w.id === workflowId);
       if (flow) {
         // @ts-ignore
@@ -1315,13 +2033,11 @@ export const useWorkflowEngine = () => {
   };
 };
 
-// --- HELPER: Safe Condition Checker ---
 const checkCondition = (value: number, condition: string): boolean => {
   if (!condition) return false;
   const parts = condition.trim().split(' ');
   const operator = parts[0];
   const target = parseFloat(parts[1]);
-
   switch (operator) {
     case '>': return value > target;
     case '<': return value < target;
@@ -2217,9 +2933,12 @@ import {
   type ColDef,
   type GridApi 
 } from '@ramme-io/ui';
-import { getResourceMeta, getMockData } from '../../data/mockData';
+import { useJustInTimeSeeder } from '../../engine/runtime/useJustInTimeSeeder';
+import { getResourceMeta } from '../../data/mockData';
 import { AutoForm } from '../../components/AutoForm';
 import { useCrudLocalStorage } from '../../engine/runtime/useCrudLocalStorage';
+import { useManifest } from '../../engine/runtime/ManifestContext';
+import type { ResourceDefinition } from '../../engine/validation/schema';
 
 interface SmartTableProps {
   dataId: string;
@@ -2232,11 +2951,37 @@ export const SmartTable: React.FC<SmartTableProps> = ({
   title}) => {
   const { addToast } = useToast();
   
-  // 1. DATA KERNEL
-  const meta = getResourceMeta(dataId);
-  const seedData = useMemo(() => getMockData(dataId) || [], [dataId]);
+  const manifest = useManifest();
+
+  // ✅ FIX: Normalize 'meta' to always match 'ResourceDefinition'
+  const meta = useMemo<ResourceDefinition | null>(() => {
+    // 1. Try Dynamic Manifest (Preview Mode)
+    const dynamicResource = manifest.resources?.find((r: ResourceDefinition) => r.id === dataId);
+    
+    if (dynamicResource) {
+      return dynamicResource;
+    }
+
+    // 2. Try Static Data (Deployed Mode)
+    const staticMeta = getResourceMeta(dataId);
+    
+    if (staticMeta) {
+      // ⚠️ Type Patch: Inject 'id' so it satisfies ResourceDefinition
+      // The static file uses the object key as the ID, but the type expects it inline.
+      return {
+        ...staticMeta,
+        id: dataId,
+        // Ensure 'type' strings from mockData match the Zod enum if needed, 
+        // but typically 'text' | 'number' overlaps fine.
+      } as unknown as ResourceDefinition; 
+    }
+
+    return null;
+  }, [manifest, dataId]);
+
+  // ✅ JIT Seeder now receives a valid ResourceDefinition
+  const seedData = useJustInTimeSeeder(dataId, meta);
   
-  // We use the CRUD hook to persist changes to localStorage
   const { 
     data: rowData, 
     createItem, 
@@ -2244,14 +2989,14 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     deleteItem 
   } = useCrudLocalStorage<any>(`ramme_db_${dataId}`, seedData);
 
-  // 2. UI STATE
+  // --- UI STATE ---
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<any>(null);
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
   const [quickFilterText, setQuickFilterText] = useState('');
 
-  // 3. COLUMN DEFINITIONS
+  // --- COLUMN DEFINITIONS ---
   const columns = useMemo<ColDef[]>(() => {
     if (!meta?.fields) return [];
 
@@ -2265,7 +3010,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
         flex: 1,
       };
 
-      // Smart Formatting based on type
       if (f.type === 'currency') {
         col.valueFormatter = (p: any) => p.value ? `$${Number(p.value).toLocaleString()}` : '';
       }
@@ -2292,14 +3036,12 @@ export const SmartTable: React.FC<SmartTableProps> = ({
       return col;
     });
 
-    // Add Checkbox Selection to the first column
     if (generatedCols.length > 0) {
       generatedCols[0].headerCheckboxSelection = true;
       generatedCols[0].checkboxSelection = true;
       generatedCols[0].minWidth = 180;
     }
 
-    // Add Actions Column
     generatedCols.push({
       headerName: "Actions",
       field: "id",
@@ -2317,7 +3059,7 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     return generatedCols;
   }, [meta]);
 
-  // 4. HANDLERS
+  // --- HANDLERS ---
   const onGridReady = useCallback((params: any) => {
     setGridApi(params.api);
   }, []);
@@ -2348,14 +3090,10 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     setIsEditOpen(false);
   };
 
-  // --- RENDER ---
   return (
     <Card className="flex flex-col h-[600px] border border-border shadow-sm overflow-hidden bg-card">
       
-      {/* HEADER TOOLBAR */}
       <div className="p-4 border-b border-border flex justify-between items-center gap-4 bg-muted/5">
-        
-        {/* Left: Title or Bulk Actions */}
         {selectedRows.length > 0 ? (
           <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-200">
             <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-md">
@@ -2381,7 +3119,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
           </div>
         )}
 
-        {/* Right: Actions & Filter */}
         <div className="flex items-center gap-2">
           <div className="w-64">
             <SearchInput 
@@ -2389,8 +3126,7 @@ export const SmartTable: React.FC<SmartTableProps> = ({
               value={quickFilterText}
               onChange={(e) => {
                 setQuickFilterText(e.target.value);
-                gridApi?.setQuickFilter(e.target.value);
-              }}
+                gridApi?.updateGridOptions({ quickFilterText: e.target.value });              }}
             />
           </div>
           <div className="h-6 w-px bg-border mx-1" />
@@ -2400,7 +3136,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
         </div>
       </div>
 
-      {/* AG GRID */}
       <div className="flex-1 w-full bg-card relative">
         <DataTable 
           rowData={rowData} 
@@ -2416,7 +3151,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
         />
       </div>
 
-      {/* EDIT DRAWER */}
       <AutoForm
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
@@ -2431,8 +3165,8 @@ export const SmartTable: React.FC<SmartTableProps> = ({
 </file>
 
 <file path="template/src/features/developer/GhostOverlay.tsx">
-import React from 'react';
-import { Icon } from '@ramme-io/ui';
+import React, { useEffect, useState } from 'react';
+import { Icon, cn } from '@ramme-io/ui';
 
 interface GhostOverlayProps {
   children: React.ReactNode;
@@ -2449,51 +3183,97 @@ export const GhostOverlay: React.FC<GhostOverlayProps> = ({
   signalId,
   isActive = false,
 }) => {
-  
+  const [isRemoteSelected, setIsRemoteSelected] = useState(false);
+
+  // --- 1. INBOUND BRIDGE: Listen for Builder Selections ---
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      // Security Check: In prod, you'd check event.origin
+      const { type, payload } = event.data || {};
+
+      if (type === 'RAMME_HIGHLIGHT_BLOCK') {
+        // If the Builder says "Highlight Block X", checking if it's us
+        setIsRemoteSelected(payload?.blockId === componentId);
+        
+        // Optional: Scroll into view if selected remotely
+        if (payload?.blockId === componentId) {
+          document.getElementById(`ghost-${componentId}`)?.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isActive, componentId]);
+
   if (!isActive) {
     return <>{children}</>;
   }
 
+  // --- 2. OUTBOUND BRIDGE: Signal the Builder ---
   const handleClick = (e: React.MouseEvent) => {
-    // 🛑 Stop the click from triggering app logic (like navigation or toggles)
+    // 🛑 Zero Jank: Stop the click from triggering links/buttons
     e.preventDefault();
     e.stopPropagation();
 
-    // 🚀 THE GHOST BRIDGE: Signal the Parent (The Builder)
+    // 🚀 Signal the Parent
     window.parent.postMessage({
       type: 'RAMME_SELECT_BLOCK',
-      payload: { blockId: componentId }
+      payload: { blockId: componentId, type: componentType }
     }, '*');
+    
+    // Optimistic UI update (optional, usually we wait for parent to confirm)
+    setIsRemoteSelected(true);
   };
 
   return (
     <div 
-      className="relative group cursor-pointer"
-      onClick={handleClick} // ✅ Add Click Handler
+      id={`ghost-${componentId}`}
+      className="relative group isolate" // isolate creates new stacking context
+      onClick={handleClick}
     >
-      {/* The "Ghost" Border */}
-      <div className="absolute inset-0 z-50 border-2 border-dashed border-accent/50 rounded-lg bg-accent/5 group-hover:bg-accent/10 transition-colors pointer-events-none" />
+      {/* --- THE GHOST LAYER --- */}
+      <div className={cn(
+        "absolute inset-0 z-50 rounded-lg transition-all duration-200 pointer-events-auto cursor-pointer",
+        // Default State (Hover)
+        "hover:ring-2 hover:ring-primary/50 hover:bg-primary/5",
+        // Selected State (Remote or Local)
+        isRemoteSelected ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_0_4px_rgba(var(--app-primary-color),0.1)]" : "border-2 border-dashed border-transparent"
+      )} />
 
-      {/* The "Info Tag" */}
-      <div className="absolute top-0 left-0 z-50 p-2 transform -translate-y-1/2 translate-x-2 pointer-events-none">
-        <div className="flex items-center gap-2 bg-accent text-accent-foreground text-xs font-mono py-1 px-2 rounded shadow-sm">
-          <Icon name="box" size={12} />
+      {/* --- INFO BADGE (Top Left) --- */}
+      <div className={cn(
+        "absolute top-0 left-0 z-50 p-2 transform -translate-y-1/2 transition-opacity duration-200",
+        isRemoteSelected || "group-hover:opacity-100 opacity-0"
+      )}>
+        <div className="flex items-center gap-2 bg-foreground text-background text-[10px] font-mono py-1 px-2 rounded shadow-sm border border-border">
+          <Icon name="box" size={10} />
           <span className="font-bold">{componentType}</span>
+          <span className="opacity-50">#{componentId.slice(0, 4)}</span>
         </div>
       </div>
 
-      {/* The "Signal Wire" */}
+      {/* --- DATA WIRE (Bottom Right) --- */}
       {signalId && (
-        <div className="absolute bottom-0 right-0 z-50 p-2 transform translate-y-1/2 -translate-x-2 pointer-events-none">
-           <div className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-mono py-1 px-2 rounded shadow-sm">
-            <Icon name="activity" size={12} />
-            <span>{signalId}</span>
+        <div className={cn(
+          "absolute bottom-0 right-0 z-50 p-2 transform translate-y-1/2 transition-opacity duration-200",
+          isRemoteSelected || "group-hover:opacity-100 opacity-0"
+        )}>
+           <div className="flex items-center gap-1.5 bg-accent text-accent-foreground text-[10px] font-mono py-1 px-2 rounded shadow-sm border border-accent/20">
+             <Icon name="activity" size={10} />
+             <span>{signalId}</span>
           </div>
         </div>
       )}
 
-      {/* Render the actual component underneath */}
-      <div className="opacity-50 grayscale transition-all duration-200 group-hover:opacity-75 group-hover:grayscale-0 pointer-events-none">
+      {/* --- CONTENT (Frozen) --- */}
+      {/* We disable pointer events on children so buttons don't fire while Ghost is active */}
+      <div className="pointer-events-none select-none">
         {children}
       </div>
     </div>
@@ -2727,19 +3507,24 @@ export default Welcome;
 </file>
 
 <file path="template/src/features/overview/pages/OverviewPage.tsx">
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   PageHeader, 
-  Card,      // Using base Card since StatCard was inline in old code
+  Card,
   BarChart, 
   Button,
   Icon,
   Badge
 } from '@ramme-io/ui';
 
-// ✅ Import Service from the Feature Domain
-import { userService } from '../../users'; 
+// 1. REMOVE: The Zombie Service Import
+// import { userService } from '../../users'; 
+
+// 2. ADD: The Engine Hook & Shared Data
+// (Adjust path '../../engine/...' if needed based on your folder structure)
+import { useCrudLocalStorage } from '../../../engine/runtime/useCrudLocalStorage';
+import { SEED_USERS, type User } from '../../../data/mockData';
 
 // Mock Data for Chart
 const revenueData = [
@@ -2753,7 +3538,6 @@ const revenueData = [
 ];
 
 // Recreating the StatCard locally (since the old one was custom)
-// You can move this to @ramme-io/ui later if you want it reusable
 const StatCard = ({ title, value, trend, icon, onClick, className }: any) => (
   <Card 
     className={`p-6 flex items-center justify-between space-x-4 transition-all hover:border-primary/50 ${className || ''}`}
@@ -2775,13 +3559,13 @@ const StatCard = ({ title, value, trend, icon, onClick, className }: any) => (
 
 export const OverviewPage: React.FC = () => {
   const navigate = useNavigate();
-  const [userCount, setUserCount] = useState(0);
 
-  // ✅ Restore Real Data Fetching
-  useEffect(() => {
-    const users = userService.getAll();
-    setUserCount(users.length);
-  }, []);
+  // 3. REPLACE: Manual fetching with the Reactive Engine
+  // This automatically connects to 'ramme_db_users' and keeps the count live
+  const { data: users } = useCrudLocalStorage<User>('ramme_db_users', SEED_USERS);
+  
+  // Calculate count directly from the hook data
+  const userCount = users.length;
 
   return (
     <div className="space-y-8 pb-10">
@@ -2799,10 +3583,9 @@ export const OverviewPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* ✅ Restore Click Navigation */}
         <StatCard 
           title="Total Users" 
-          value={userCount} 
+          value={userCount} // ✅ Uses live data from Data Lake
           trend={+12.5} 
           icon="users" 
           className="cursor-pointer bg-primary/5 border-primary/20"
@@ -2821,7 +3604,6 @@ export const OverviewPage: React.FC = () => {
             <Badge variant="outline">Weekly</Badge>
           </div>
           <div className="h-[350px] w-full">
-            {/* ✅ Using the props from your old file */}
             <BarChart 
               data={revenueData} 
               dataKeyX="name" 
@@ -3027,21 +3809,31 @@ import {
   Alert 
 } from '@ramme-io/ui';
 import { useAuth } from '../../auth/AuthContext';
-import { userService } from '../../users/api/user.service';
+
+// 1. REMOVE Zombie Service
+// import { userService } from '../../users/api/user.service';
+
+// 2. ADD Engine Hooks & Data
+import { useCrudLocalStorage } from '../../../engine/runtime/useCrudLocalStorage';
+import { SEED_USERS, type User } from '../../../data/mockData';
 
 const ProfilePage: React.FC = () => {
-  const { user } = useAuth(); // We use login to "refresh" session data if needed
+  const { user } = useAuth(); 
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   
+  // 3. CONNECT to Data Lake
+  // We only need 'updateItem' here to modify the existing profile
+  const { updateItem } = useCrudLocalStorage<User>('ramme_db_users', SEED_USERS);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: '',
-    bio: 'Product Designer based in San Francisco.' // Mock field
+    bio: 'Product Designer based in San Francisco.'
   });
 
-  // Load current user data
+  // Load current user data into form
   useEffect(() => {
     if (user) {
       setFormData({
@@ -3063,18 +3855,15 @@ const ProfilePage: React.FC = () => {
     setSuccess(false);
 
     try {
-      // 1. Update in "Database"
       if (user?.id) {
-        userService.update(user.id, {
-          name: formData.name,
-          email: formData.email
-        });
+        // 4. USE ENGINE to update the record in the Data Lake
+        // We merge the existing user object with the new form data
+        updateItem({ ...user, ...formData } as User);
+
+        // 5. REFRESH SESSION (Local hack to update UI header immediately)
+        // In a real app, AuthContext would listen to storage changes, but this is fine for a prototype.
+        localStorage.setItem('ramme_session', JSON.stringify({ ...user, ...formData }));
         
-        // 2. Update Local Session (Hack to refresh UI without logout)
-        const updatedUser = { ...user, ...formData };
-        localStorage.setItem('ramme_session', JSON.stringify(updatedUser));
-        
-        // 3. Show Success
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
       }
@@ -3096,36 +3885,29 @@ const ProfilePage: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* LEFT COLUMN: Identity Card */}
+        {/* Left Column - Avatar Card */}
         <Card className="p-6 flex flex-col items-center text-center space-y-4 h-fit">
           <div className="relative group cursor-pointer">
             <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary border-4 border-background shadow-sm">
               {formData.name.charAt(0)}
             </div>
             <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <Icon name="camera" className="text-white" />
+               <Icon name="camera" className="text-white" />
             </div>
           </div>
-          
           <div>
             <h3 className="font-semibold text-lg">{formData.name}</h3>
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80 uppercase">
               {formData.role}
             </span>
           </div>
-
           <div className="w-full pt-4 border-t">
-            <p className="text-xs text-muted-foreground mb-4">
-              Joined December 2024
-            </p>
-            <Button variant="outline" className="w-full" size="sm">
-              Change Avatar
-            </Button>
+            <p className="text-xs text-muted-foreground mb-4">Joined December 2024</p>
+            <Button variant="outline" className="w-full" size="sm">Change Avatar</Button>
           </div>
         </Card>
 
-        {/* RIGHT COLUMN: Edit Form */}
+        {/* Right Column - Form */}
         <Card className="md:col-span-2 p-6">
           <form onSubmit={handleSave} className="space-y-4">
             <div className="grid gap-2">
@@ -3147,17 +3929,13 @@ const ProfilePage: React.FC = () => {
                 onChange={handleChange} 
               />
               <div className="space-y-2">
-                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Bio
-                </label>
+                <label className="text-sm font-medium leading-none">Bio</label>
                 <textarea 
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={formData.bio}
                   disabled
                 />
-                <p className="text-[0.8rem] text-muted-foreground">
-                  Bio editing is disabled in this demo.
-                </p>
+                <p className="text-[0.8rem] text-muted-foreground">Bio editing is disabled in this demo.</p>
               </div>
             </div>
 
@@ -4949,75 +5727,6 @@ const navItems = useMemo<SidebarItem[]>(() => {
 export default Styleguide;
 </file>
 
-<file path="template/src/features/users/api/user.service.ts">
-import type { User } from './user.types';
-
-const STORAGE_KEY = 'ramme_users';
-
-// Seed data to ensure the app isn't empty on first load
-const seedData: User[] = [
-  { id: '1', name: 'Admin User', email: 'admin@ramme.io', role: 'admin', status: 'active', lastLogin: new Date().toISOString() },
-  { id: '2', name: 'John Doe', email: 'john@example.com', role: 'user', status: 'active', lastLogin: '2023-12-25T10:00:00Z' },
-];
-
-export const userService = {
-  // Get all users
-  getAll: (): User[] => {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seedData));
-      return seedData;
-    }
-    return JSON.parse(data);
-  },
-
-  // Add a new user
-  add: (user: Omit<User, 'id' | 'lastLogin'>) => {
-    const users = userService.getAll();
-    const newUser: User = {
-      id: crypto.randomUUID(), // Native browser UUID
-      lastLogin: new Date().toISOString(),
-      ...user
-    };
-    users.push(newUser);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-    return newUser;
-  },
-
-  // Update a user
-  update: (id: string, updates: Partial<User>) => {
-    const users = userService.getAll();
-    const index = users.findIndex(u => u.id === id);
-    if (index !== -1) {
-      users[index] = { ...users[index], ...updates };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-    }
-  },
-
-  // Delete a user
-  delete: (id: string) => {
-    const users = userService.getAll().filter(u => u.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-  }
-};
-</file>
-
-<file path="template/src/features/users/api/user.types.ts">
-// src/features/users/api/user.types.ts
-
-export type UserRole = 'admin' | 'editor' | 'user';
-export type UserStatus = 'active' | 'inactive';
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  status: UserStatus;
-  lastLogin?: string; // Optional because new users might not have logged in yet
-}
-</file>
-
 <file path="template/src/features/users/components/UserDrawer.tsx">
 import React, { useEffect, useState } from 'react';
 import { Drawer, Button, Input, Select, type SelectOption } from '@ramme-io/ui';
@@ -5316,12 +6025,6 @@ export default UsersPage;
 <file path="template/src/features/users/index.ts">
 // ✅ Export Page for Routing
 export { default as UsersPage } from './pages/UsersPage';
-
-// ✅ Export Service for AuthContext
-export { userService } from './api/user.service';
-
-// ✅ Export Types for global use
-export type { User, UserRole } from './api/user.types';
 </file>
 
 <file path="template/src/features/GenericContentPage.tsx">
@@ -5354,120 +6057,274 @@ const GenericContentPage: React.FC<GenericContentPageProps> = ({ pageTitle, chil
 export default GenericContentPage;
 </file>
 
-<file path="template/public/api_mock.json">
-{
-  "meta": {
-    "status": 200,
-    "region": "us-east-1"
-  },
-  "data": {
-    "finance": {
-      "mrr": 99999.00,
-      "growth": 0.12
-    },
-    "users": {
-      "total": 1245,
-      "active": 890
-    }
+<file path="template/src/App.css">
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
-</file>
 
-<file path="template/public/vite.svg">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
-</file>
-
-<file path="template/src/components/AddItemsModal.tsx">
-import React, { useMemo } from 'react';
-import {
-  Modal,
-  Button,
-  SearchInput,
-  DataTable,
-  Checkbox,
-  type ColDef
-} from '@ramme-io/ui';
-
-// Mock data is fine as is
-const mockData = [
-  { id: 34561, name: 'Item Name 1', color: 'Blue' },
-  { id: 76552, name: 'Item Name 2', color: 'Red' },
-  { id: 54364, name: 'Item Name 3', color: 'Yellow' },
-  { id: 87655, name: 'Item Name 3', color: 'Red' },
-  { id: 98676, name: 'Item Name 3', color: 'Yellow' },
-];
-
-interface AddItemsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
 }
 
-export const AddItemsModal: React.FC<AddItemsModalProps> = ({
-  isOpen,
-  onClose,
-}) => {
-  const [selectedCount, setSelectedCount] = React.useState(0);
+.card {
+  padding: 2em;
+}
 
-  // --- FIX: Use AG Grid's column definition format ---
-  const columnDefs = useMemo<ColDef[]>(() => [
-    {
-      headerName: 'Name',
-      field: 'name', // Use 'field' instead of 'accessor'
-      // AG Grid uses cellRenderer for custom components
-      cellRenderer: (params: any) => (
-        <div className="flex items-center">
-          {params.value}
-        </div>
-      ),
-      // Add a custom header component for the "select all" checkbox
-      headerCheckboxSelection: true,
-      checkboxSelection: true,
-    },
-    {
-      headerName: 'ID', // Use 'headerName' instead of 'Header'
-      field: 'id',
-    },
-    {
-      headerName: 'Color',
-      field: 'color',
-    },
-  ], []);
+.read-the-docs {
+  color: #888;
+}
+</file>
 
-  const modalFooter = (
-    <div className="flex items-center justify-between w-full">
-      <div className="font-bold">{`(${selectedCount}) Selected`}</div>
-      <div className="flex gap-2">
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary">Add Items</Button>
-      </div>
-    </div>
-  );
+<file path="template/src/vite-env.d.ts">
+/// <reference types="vite/client" />
+</file>
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Add Items"
-      footer={modalFooter}
-    >
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Select Item(s)</h3>
-        <SearchInput placeholder="Search by name" />
-        <DataTable
-          // --- FIX: Use the correct prop names ---
-          columnDefs={columnDefs}
-          rowData={mockData}
-          rowSelection="multiple" // Enable row selection
-          onSelectionChanged={(event) => {
-            setSelectedCount(event.api.getSelectedRows().length);
-          }}
-        />
-      </div>
-    </Modal>
-  );
+<file path="template/eslint.config.js">
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
+import { globalIgnores } from 'eslint/config'
+
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      reactHooks.configs['recommended-latest'],
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+  },
+])
+</file>
+
+<file path="template/gitignore">
+node_modules
+</file>
+
+<file path="template/index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/orange.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ramme - App Starter</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="template/postcss.config.cjs">
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
 };
+</file>
+
+<file path="template/tailwind.config.cjs">
+const path = require('path');
+
+// This finds the absolute path to the @ramme-io/ui package's directory
+const rammeUiPath = path.dirname(require.resolve('@ramme-io/ui/package.json'));
+
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  presets: [
+    // Load the preset from the absolute path we found
+    require(path.join(rammeUiPath, 'tailwind.preset.js'))
+  ],
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+    // Scan the library's files for classes using the absolute path
+    path.join(rammeUiPath, 'dist/**/*.js'),
+  ],
+}
+</file>
+
+<file path="template/tsconfig.app.json">
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="template/tsconfig.json">
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+</file>
+
+<file path="template/tsconfig.node.json">
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["../vite.config.ts"]
+}
+</file>
+
+<file path="index.js">
+#!/usr/bin/env node
+import fs from 'fs-extra';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const projectPath = process.argv[2];
+
+if (!projectPath) {
+  console.error('Error: Please specify the project directory.');
+  console.log('  Usage: npm create ramme-app@latest <project-directory>');
+  process.exit(1);
+}
+
+const templatePath = path.resolve(__dirname, 'template');
+const destinationPath = path.resolve(process.cwd(), projectPath);
+
+try {
+  if (!fs.existsSync(templatePath)) {
+    throw new Error(`Critical Error: The template directory could not be found at ${templatePath}`);
+  }
+
+  console.log(`Creating a new Ramme app in ${destinationPath}...`);
+  fs.copySync(templatePath, destinationPath);
+
+  // --- This is the new part that renames the files ---
+  const pkgJsonPath = path.join(destinationPath, 'pkg.json');
+  const gitignorePath = path.join(destinationPath, 'gitignore');
+
+  if (fs.existsSync(pkgJsonPath)) {
+    fs.renameSync(pkgJsonPath, path.join(destinationPath, 'package.json'));
+  }
+  if (fs.existsSync(gitignorePath)) {
+    fs.renameSync(gitignorePath, path.join(destinationPath, '.gitignore'));
+  }
+  // ---------------------------------------------------
+
+  console.log(`\nSuccess! Your new Ramme app is ready.`);
+  console.log('\nTo get started:');
+  console.log(`  cd ${projectPath}`);
+  console.log(`  pnpm install`);
+  console.log(`  pnpm run dev\n`);
+
+} catch (err) {
+  console.error('\nAn error occurred during installation:', err);
+  fs.removeSync(destinationPath); // Clean up in case of failure
+  process.exit(1);
+}
+</file>
+
+<file path="LICENSE">
+MIT License
+
+Copyright (c) 2025 Excesspool Limited Liability Company
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 </file>
 
 <file path="template/src/components/AIChatWidget.tsx">
@@ -5540,21 +6397,6 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ onClose }) => {
     </Card>
   );
 };
-</file>
-
-<file path="template/src/components/AppFooter.tsx">
-// src/components/AppFooter.tsx
-import React from 'react';
-
-const AppFooter: React.FC = () => {
-  return (
-    <footer className="py-6 text-center text-muted-foreground">
-      <p>&copy; {new Date().getFullYear()} Ramme. All Rights Reserved.</p>
-    </footer>
-  );
-};
-
-export default AppFooter;
 </file>
 
 <file path="template/src/components/AutoForm.tsx">
@@ -5701,35 +6543,6 @@ export const AutoForm: React.FC<AutoFormProps> = ({
 };
 </file>
 
-<file path="template/src/components/HashLinkScroll.tsx">
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-
-/**
- * A component that listens for hash changes in the URL and smoothly
- * scrolls the corresponding element into view.
- */
-const HashLinkScroll = () => {
-  const { hash } = useLocation();
-
-  useEffect(() => {
-    if (hash) {
-      // We need to remove the '#' from the hash string
-      const id = hash.substring(1);
-      const element = document.getElementById(id);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-  }, [hash]); // Re-run this effect whenever the hash changes
-
-  // This component does not render any UI
-  return null;
-};
-
-export default HashLinkScroll;
-</file>
-
 <file path="template/src/components/PageTitleUpdater.tsx">
 /**
  * @file PageTitleUpdater.tsx
@@ -5845,58 +6658,6 @@ const ProtectedRoute: React.FC = () => {
 };
 
 export default ProtectedRoute;
-</file>
-
-<file path="template/src/components/TemplateSwitcher.tsx">
-/**
- * @file TemplateSwitcher.tsx
- * @repository ramme-app-starter
- * @description A reusable component to switch between application templates.
- */
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-
-const TemplateSwitcher: React.FC = () => {
-  const location = useLocation();
-  const isDashboard = location.pathname.startsWith('/dashboard');
-  const isDocs = location.pathname.startsWith('/docs');
-  const isSettings = location.pathname.startsWith('/settings');
-
-  return (
-    <div className="bg-muted text-muted-foreground p-1 rounded-md text-sm flex items-center gap-1">
-      <Link
-        to="/dashboard"
-        className={`px-3 py-1 rounded ${
-          isDashboard
-            ? 'bg-background shadow-sm text-foreground font-semibold'
-            : ''
-        }`}
-      >
-        Dashboard
-      </Link>
-      <Link
-        to="/docs"
-        className={`px-3 py-1 rounded ${
-          isDocs ? 'bg-background shadow-sm text-foreground font-semibold' : ''
-        }`}
-      >
-        Docs
-      </Link>
-      <Link
-        to="/settings"
-        className={`px-3 py-1 rounded ${
-          isSettings
-            ? 'bg-background shadow-sm text-foreground font-semibold'
-            : ''
-        }`}
-      >
-        Settings
-      </Link>
-    </div>
-  );
-};
-
-export default TemplateSwitcher;
 </file>
 
 <file path="template/src/config/navigation.ts">
@@ -6030,26 +6791,6 @@ export const MOCK_CHART_DATA: Record<string, RechartsData> = {
 export const getChartData = (id: string) => {
   return MOCK_CHART_DATA[id] || [];
 };
-</file>
-
-<file path="template/src/data/mockLedger.ts">
-export interface LedgerEntry {
-  category: 'Revenue' | 'Cost of Goods Sold' | 'Operating Expenses';
-  account: string;
-  actual: number;
-  budget: number;
-}
-
-export const mockLedgerData: LedgerEntry[] = [
-  // --- Raw Data Only ---
-  { category: 'Revenue', account: 'Product Sales', actual: 125000, budget: 120000 },
-  { category: 'Revenue', account: 'Service Fees', actual: 32000, budget: 35000 },
-  { category: 'Cost of Goods Sold', account: 'Raw Materials', actual: -45000, budget: -42000 },
-  { category: 'Cost of Goods Sold', account: 'Direct Labor', actual: -28000, budget: -30000 },
-  { category: 'Operating Expenses', account: 'Marketing', actual: -12000, budget: -10000 },
-  { category: 'Operating Expenses', account: 'Salaries & Wages', actual: -55000, budget: -55000 },
-  { category: 'Operating Expenses', account: 'Rent & Utilities', actual: -8500, budget: -8000 },
-];
 </file>
 
 <file path="template/src/templates/docs/docs.sitemap.ts">
@@ -6224,51 +6965,6 @@ export const settingsSitemap: SitemapEntry[] = [
 ];
 </file>
 
-<file path="template/src/App.css">
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
-</file>
-
 <file path="template/src/index.css">
 @tailwind base;
 @tailwind components;
@@ -6278,154 +6974,6 @@ export const settingsSitemap: SitemapEntry[] = [
 /* Add this new rule */
 .sidebar-panel {
   min-width: 220px !important;
-}
-</file>
-
-<file path="template/src/vite-env.d.ts">
-/// <reference types="vite/client" />
-</file>
-
-<file path="template/eslint.config.js">
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import tseslint from 'typescript-eslint'
-import { globalIgnores } from 'eslint/config'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      tseslint.configs.recommended,
-      reactHooks.configs['recommended-latest'],
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-    },
-  },
-])
-</file>
-
-<file path="template/gitignore">
-node_modules
-</file>
-
-<file path="template/index.html">
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/orange.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ramme - App Starter</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-</file>
-
-<file path="template/postcss.config.cjs">
-module.exports = {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-};
-</file>
-
-<file path="template/tailwind.config.cjs">
-const path = require('path');
-
-// This finds the absolute path to the @ramme-io/ui package's directory
-const rammeUiPath = path.dirname(require.resolve('@ramme-io/ui/package.json'));
-
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  presets: [
-    // Load the preset from the absolute path we found
-    require(path.join(rammeUiPath, 'tailwind.preset.js'))
-  ],
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-    // Scan the library's files for classes using the absolute path
-    path.join(rammeUiPath, 'dist/**/*.js'),
-  ],
-}
-</file>
-
-<file path="template/tsconfig.app.json">
-{
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "target": "ES2022",
-    "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "jsx": "react-jsx",
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
-  },
-  "include": ["src"]
-}
-</file>
-
-<file path="template/tsconfig.json">
-{
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
-}
-</file>
-
-<file path="template/tsconfig.node.json">
-{
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "target": "ES2023",
-    "lib": ["ES2023"],
-    "module": "ESNext",
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
-  },
-  "include": ["../vite.config.ts"]
 }
 </file>
 
@@ -6458,234 +7006,6 @@ export default defineConfig({
 });
 </file>
 
-<file path="index.js">
-#!/usr/bin/env node
-import fs from 'fs-extra';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const projectPath = process.argv[2];
-
-if (!projectPath) {
-  console.error('Error: Please specify the project directory.');
-  console.log('  Usage: npm create ramme-app@latest <project-directory>');
-  process.exit(1);
-}
-
-const templatePath = path.resolve(__dirname, 'template');
-const destinationPath = path.resolve(process.cwd(), projectPath);
-
-try {
-  if (!fs.existsSync(templatePath)) {
-    throw new Error(`Critical Error: The template directory could not be found at ${templatePath}`);
-  }
-
-  console.log(`Creating a new Ramme app in ${destinationPath}...`);
-  fs.copySync(templatePath, destinationPath);
-
-  // --- This is the new part that renames the files ---
-  const pkgJsonPath = path.join(destinationPath, 'pkg.json');
-  const gitignorePath = path.join(destinationPath, 'gitignore');
-
-  if (fs.existsSync(pkgJsonPath)) {
-    fs.renameSync(pkgJsonPath, path.join(destinationPath, 'package.json'));
-  }
-  if (fs.existsSync(gitignorePath)) {
-    fs.renameSync(gitignorePath, path.join(destinationPath, '.gitignore'));
-  }
-  // ---------------------------------------------------
-
-  console.log(`\nSuccess! Your new Ramme app is ready.`);
-  console.log('\nTo get started:');
-  console.log(`  cd ${projectPath}`);
-  console.log(`  pnpm install`);
-  console.log(`  pnpm run dev\n`);
-
-} catch (err) {
-  console.error('\nAn error occurred during installation:', err);
-  fs.removeSync(destinationPath); // Clean up in case of failure
-  process.exit(1);
-}
-</file>
-
-<file path="LICENSE">
-MIT License
-
-Copyright (c) 2025 Excesspool Limited Liability Company
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-</file>
-
-<file path="template/src/components/AppHeader.tsx">
-/**
- * @file AppHeader.tsx
- * @repository ramme-app-starter
- * @description This is the global application header.
- *
- * @developer_notes
- * STRATEGIC REFACTOR (10/21/2025):
- * 1. Updated logo to include both the `orange.png` image and "Ramme" text.
- * 2. Kept all A.D.A.P.T. manifest, asChild, and z-index fixes.
- */
-import React from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Avatar,
-  Menu,
-  MenuItem,
-  MenuDivider,
-  Icon,
-  useTheme,
-  type ThemeName,
-} from '@ramme-io/ui';
-import { useAuth } from '../features/auth/AuthContext';
-
-// --- STRATEGIC IMPORTS ---
-import { appManifest } from '../config/navigation';
-import type { ManifestLink } from '../engine/types/manifest-types';
-import TemplateSwitcher from './TemplateSwitcher';
-import rammeLogo from '../assets/orange.png'; // <-- 1. IMPORT THE LOGO
-
-const AppHeader: React.FC = () => {
-  const { theme, availableThemes, setTheme } = useTheme();
-  const { user, logout } = useAuth();
-  const userNavLinks = appManifest.userMenu;
-
-  const handleResetData = () => {
-    if (
-      window.confirm(
-        'Are you sure you want to reset all user data to the original mock data? This cannot be undone.',
-      )
-    ) {
-      localStorage.removeItem('users');
-      window.location.reload();
-    }
-  };
-
-  return (
-    // Z-INDEX FIX: Set to z-50 to render above the z-40 sidebar.
-    <header className="flex items-center justify-between p-4 bg-card border-b border-border shadow-sm sticky top-0 z-50">
-      
-      {/* --- 2. UPDATED LOGO BLOCK --- */}
-      {/* Logo - links to dashboard home */}
-      <Link to="/dashboard" className="flex items-center gap-2">
-        <img src={rammeLogo} alt="Ramme Logo" className="h-8 w-auto" />
-        <h1 className="text-2xl font-bold text-text">Ramme</h1>
-      </Link>
-
-      <div className="flex items-center gap-4">
-        <TemplateSwitcher />
-        {user && (
-          <Menu
-            trigger={
-              <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
-                <Avatar name={user.name} size="sm" />
-              </button>
-            }
-          >
-            {/* 1. User Info (Static) */}
-            <div className="p-2 text-sm text-muted-foreground">
-              <p className="font-semibold text-text">{user.name}</p>
-              <p>{user.email}</p>
-            </div>
-            <MenuDivider />
-
-            {/* 2. Designer-Controlled Nav Links */}
-            {userNavLinks.map((link: ManifestLink) => (
-              <MenuItem
-                key={link.id}
-                asChild
-                icon={link.icon ? <Icon name={link.icon} /> : undefined}
-              >
-                <Link to={link.path}>{link.title}</Link>
-              </MenuItem>
-            ))}
-            <MenuDivider />
-
-            {/* 3. App-Specific: Theme Switcher */}
-            <div className="p-2 text-sm text-muted-foreground">
-              <p>
-                Active Theme:{' '}
-                <span className="font-semibold text-text">{theme}</span>
-              </p>
-            </div>
-            {availableThemes.map((themeName: string) => (
-              <MenuItem
-                key={themeName}
-                onClick={() => setTheme(themeName as ThemeName)}
-              >
-                {themeName.charAt(0).toUpperCase() + themeName.slice(1)}
-              </MenuItem>
-            ))}
-            <MenuDivider />
-
-            {/* 4. App-Specific: Actions */}
-            <MenuItem onClick={handleResetData} icon={<Icon name="refresh-cw" />}>
-              Reset Data
-            </MenuItem>
-            <MenuItem onClick={logout} icon={<Icon name="log-out" />}>
-              Logout
-            </MenuItem>
-          </Menu>
-        )}
-      </div>
-    </header>
-  );
-};
-
-export default AppHeader;
-</file>
-
-<file path="template/src/main.tsx">
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import App from './App.tsx';
-import { ThemeProvider, ToastProvider } from '@ramme-io/ui';
-import { AuthProvider } from './features/auth/AuthContext.tsx'; 
-import { MqttProvider } from './engine/runtime/MqttContext';
-import "@ramme-io/ui/index.css";
-import './index.css';
-
-// This import activates all AG Grid Enterprise features
-import 'ag-grid-enterprise';
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <ThemeProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <MqttProvider>
-              <App />
-            </MqttProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  </React.StrictMode>,
-);
-</file>
-
 <file path=".gitignore">
 node_modules
 template/node_modules
@@ -6716,6 +7036,126 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Navigation**: Migrated to a centralized `sitemap-driven` architecture for better AI control.
 - **Layouts**: Split layouts into `DashboardLayout` (Sidebar) and `DocsLayout` (Top Nav).
+</file>
+
+<file path="template/src/components/AppHeader.tsx">
+/**
+ * @file AppHeader.tsx
+ * @repository ramme-app-starter
+ * @description This is the global application header.
+ *
+ * @developer_notes
+ * STRATEGIC REFACTOR:
+ * 1. Cleaned up Ghost Bridge telemetry for production feel.
+ * 2. Kept all A.D.A.P.T. navigation and z-index fixes.
+ */
+import React from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Avatar,
+  Menu,
+  MenuItem,
+  MenuDivider,
+  Icon,
+  useTheme,
+  type ThemeName,
+} from '@ramme-io/ui';
+import { useAuth } from '../features/auth/AuthContext';
+
+// --- STRATEGIC IMPORTS ---
+import { appManifest } from '../config/navigation';
+import type { ManifestLink } from '../engine/types/manifest-types';
+import TemplateSwitcher from './TemplateSwitcher';
+import rammeLogo from '../assets/orange.png'; 
+
+const AppHeader: React.FC = () => {
+  const { theme, availableThemes, setTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const userNavLinks = appManifest.userMenu;
+
+  const handleResetData = () => {
+    if (
+      window.confirm(
+        'Are you sure you want to reset all user data to the original mock data? This cannot be undone.',
+      )
+    ) {
+      localStorage.removeItem('users');
+      window.location.reload();
+    }
+  };
+
+  return (
+    // Z-INDEX FIX: Set to z-50 to render above the z-40 sidebar.
+    <header className="flex items-center justify-between p-4 bg-card border-b border-border shadow-sm sticky top-0 z-50">
+      
+      {/* --- 1. LOGO BLOCK --- */}
+      <Link to="/dashboard" className="flex items-center gap-2">
+        <img src={rammeLogo} alt="Ramme Logo" className="h-8 w-auto" />
+        <h1 className="text-2xl font-bold text-text">Ramme</h1>
+      </Link>
+
+      {/* --- 2. USER ACTIONS --- */}
+      <div className="flex items-center gap-4">
+        <TemplateSwitcher />
+        {user && (
+          <Menu
+            trigger={
+              <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                <Avatar name={user.name} size="sm" />
+              </button>
+            }
+          >
+            {/* User Info */}
+            <div className="p-2 text-sm text-muted-foreground">
+              <p className="font-semibold text-text">{user.name}</p>
+              <p>{user.email}</p>
+            </div>
+            <MenuDivider />
+
+            {/* Navigation Links */}
+            {userNavLinks.map((link: ManifestLink) => (
+              <MenuItem
+                key={link.id}
+                asChild
+                icon={link.icon ? <Icon name={link.icon} /> : undefined}
+              >
+                <Link to={link.path}>{link.title}</Link>
+              </MenuItem>
+            ))}
+            <MenuDivider />
+
+            {/* Theme Switcher */}
+            <div className="p-2 text-sm text-muted-foreground">
+              <p>
+                Active Theme:{' '}
+                <span className="font-semibold text-text">{theme}</span>
+              </p>
+            </div>
+            {availableThemes.map((themeName: string) => (
+              <MenuItem
+                key={themeName}
+                onClick={() => setTheme(themeName as ThemeName)}
+              >
+                {themeName.charAt(0).toUpperCase() + themeName.slice(1)}
+              </MenuItem>
+            ))}
+            <MenuDivider />
+
+            {/* Actions */}
+            <MenuItem onClick={handleResetData} icon={<Icon name="refresh-cw" />}>
+              Reset Data
+            </MenuItem>
+            <MenuItem onClick={logout} icon={<Icon name="log-out" />}>
+              Logout
+            </MenuItem>
+          </Menu>
+        )}
+      </div>
+    </header>
+  );
+};
+
+export default AppHeader;
 </file>
 
 <file path="template/src/data/mockData.ts">
@@ -6893,6 +7333,140 @@ export const getResourceMeta = (id: string): ResourceMeta | null => {
 };
 </file>
 
+<file path="template/src/main.tsx">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App.tsx';
+import { ThemeProvider, ToastProvider } from '@ramme-io/ui';
+import { AuthProvider } from './features/auth/AuthContext.tsx'; 
+import { MqttProvider } from './engine/runtime/MqttContext';
+import "@ramme-io/ui/index.css";
+import './index.css';
+import { initializeDataLake } from './engine/runtime/data-seeder';
+
+import { ManifestProvider } from './engine/runtime/ManifestContext';
+
+// This import activates all AG Grid Enterprise features
+import 'ag-grid-enterprise';
+
+initializeDataLake();
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <ManifestProvider>
+    <BrowserRouter>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <MqttProvider>
+              <App />
+            </MqttProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </BrowserRouter>
+    </ManifestProvider>
+  </React.StrictMode>,
+);
+</file>
+
+<file path="template/DESIGNER_GUIDE.md">
+## 🚀 Quick Start for Designers
+
+You don't need to be a coding wizard to use this. Just follow these 3 steps:
+
+### 1. Setup (Do this once)
+You need **Node.js** installed on your computer.
+- Open your terminal (Command Prompt or Terminal app).
+- Type `node -v` to see if you have it. If not, download it from [nodejs.org](https://nodejs.org).
+
+### 2. Create your Project
+Run this magic command in your terminal:
+
+```bash
+npm create @ramme-io/app@latest
+```
+
+It will ask you for a project name (e.g., my-smart-home). Type it and hit Enter.
+
+---
+
+## Run it!
+
+You will be prompted to name your project.
+
+**1. Enter the project directory**
+```bash
+cd my-new-project
+```
+
+**2. Install dependencies**
+```bash
+pnpm install
+# or npm install
+```
+
+**3. Start the dev server**
+```bash
+pnpm run dev
+```
+
+Your prototype is now running locally at `http://localhost:5173`.
+
+---
+</file>
+
+<file path="template/README.md">
+# Ramme App Starter
+
+Welcome to your new **Ramme** application!
+This project was scaffolded using `create-ramme-app`.
+
+## 🚦 Getting Started
+
+**Install dependencies:**
+```bash
+npm install
+# or
+pnpm install
+# or
+yarn
+```
+
+**Start the development server:**
+```bash
+npm run dev
+```
+
+**Open your browser:**
+Visit `http://localhost:5173` to see your app.
+
+## 🏗️ Project Structure
+
+**`src/config/app.manifest.ts`**: The "Brain" of your app. Define your app's title, description, and high-level settings here.
+**`src/config/sitemap.ts`**: The "Skeleton." Define your pages and navigation structure here.
+**`src/core/component-registry.tsx`**: Maps JSON component names (from the builder) to actual React components.
+**`src/pages`**: Your actual page components.
+**`src/data`**: Mock data generators and seed files.
+
+## 🎨 Customization
+
+### changing the Theme
+Go to `src/index.css` or `tailwind.config.js` to update your brand colors.
+
+### Adding New Pages
+1.  Create a new component in `src/pages`.
+2.  Register it in your `sitemap.ts` (or the relevant template sitemap).
+3.  The `RouteGenerator` will automatically handle the routing!
+
+## 📚 Learn More
+
+- [Ramme UI Documentation](https://ramme.io/docs)
+- [Vite Documentation](https://vitejs.dev/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/)
+</file>
+
 <file path="template/src/templates/settings/SettingsLayout.tsx">
 import React, { useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -7016,6 +7590,7 @@ import { ThemeProvider } from '@ramme-io/ui';
 import { AuthProvider } from './features/auth/AuthContext';
 import { MqttProvider } from './engine/runtime/MqttContext';
 
+
 // --- 1. IMPORT AUTH CLUSTER ---
 import { AuthLayout } from './features/auth/pages/AuthLayout';
 import LoginPage from './features/auth/pages/LoginPage';
@@ -7024,6 +7599,7 @@ import SignupPage from './features/auth/pages/SignupPage';
 // --- 2. IMPORT TEMPLATES ---
 import DashboardLayout from './templates/dashboard/DashboardLayout';
 import { dashboardSitemap } from './templates/dashboard/dashboard.sitemap';
+import { useDynamicSitemap } from './engine/runtime/useDynamicSitemap';
 import DocsLayout from './templates/docs/DocsLayout';
 import { docsSitemap } from './templates/docs/docs.sitemap';
 import SettingsLayout from './templates/settings/SettingsLayout';
@@ -7039,6 +7615,7 @@ import { initializeDataLake } from './engine/runtime/data-seeder';
 import ScrollToTop from './components/ScrollToTop';
 import HashLinkScroll from './components/HashLinkScroll';
 
+
 function App() {
   
   // Trigger data seeding on mount
@@ -7046,8 +7623,14 @@ function App() {
     initializeDataLake();
   }, []);
 
+  const liveDashboardRoutes = useDynamicSitemap(dashboardSitemap);
+
+  console.log("🗺️ ROUTER MAP:", liveDashboardRoutes.map(r => ({ path: r.path, id: r.id })));
+  
+
   return (
     <ThemeProvider>
+      
       <AuthProvider>
         <MqttProvider>
           <ScrollToTop />
@@ -7071,7 +7654,7 @@ function App() {
               {/* Dashboard Template */}
               <Route path="/dashboard/*" element={<DashboardLayout />}>
               <Route index element={<Navigate to="welcome" replace />} />
-                {generateRoutes(dashboardSitemap)}
+                {generateRoutes(liveDashboardRoutes)}
               </Route>
 
               {/* Docs Template */}
@@ -7090,6 +7673,7 @@ function App() {
           </Routes>
         </MqttProvider>
       </AuthProvider>
+      
     </ThemeProvider>
   );
 }
@@ -7097,28 +7681,27 @@ function App() {
 export default App;
 </file>
 
-<file path="template/DESIGNER_GUIDE.md">
-## 🚀 Quick Start for Designers
+<file path="README.md">
+# Create Ramme App
 
-You don't need to be a coding wizard to use this. Just follow these 3 steps:
+[![NPM Version](https://img.shields.io/npm/v/@ramme-io/create-app.svg)](https://www.npmjs.com/package/@ramme-io/create-app) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-### 1. Setup (Do this once)
-You need **Node.js** installed on your computer.
-- Open your terminal (Command Prompt or Terminal app).
-- Type `node -v` to see if you have it. If not, download it from [nodejs.org](https://nodejs.org).
+The easiest way to start a new **Ramme** project.
+This CLI tool scaffolds a production-ready React application configured with:
+- **@ramme/ui:** Our pre-built component library.
+- **Tailwind CSS:** Fully configured for the Ramme design system.
+- **Vite:** For lightning-fast development.
+- **TypeScript:** For type-safe code.
 
-### 2. Create your Project
-Run this magic command in your terminal:
+## 🚀 Quick Start
+
+Get started in seconds. No global installation required.
 
 ```bash
 npm create @ramme-io/app@latest
+# or
+npm init @ramme-io/app@latest
 ```
-
-It will ask you for a project name (e.g., my-smart-home). Type it and hit Enter.
-
----
-
-## Run it!
 
 You will be prompted to name your project.
 
@@ -7141,56 +7724,30 @@ pnpm run dev
 Your prototype is now running locally at `http://localhost:5173`.
 
 ---
-</file>
 
-<file path="template/README.md">
-# Ramme App Starter
+## The Tech Stack
 
-Welcome to your new **Ramme** application!
-This project was scaffolded using `create-ramme-app`.
+This starter kit is an opinionated selection of the best open-source tools available:
 
-## 🚦 Getting Started
+* **Vite:** Next-generation tooling for instant server start and lightning-fast HMR (Hot Module Replacement).
+* **React:** The standard library for building composable user interfaces.
+* **TypeScript:** Statically typed JavaScript for scalable, robust application logic.
+* **Tailwind CSS:** A utility-first styling engine configured with Ramme design tokens.
+* **@ramme-io/ui:** A pre-installed suite of accessible, unstyled primitives based on Radix UI.
 
-**Install dependencies:**
-```bash
-npm install
-# or
-pnpm install
-# or
-yarn
-```
+---
 
-**Start the development server:**
-```bash
-npm run dev
-```
+## Project Links
 
-**Open your browser:**
-Visit `http://localhost:5173` to see your app.
+* **`@ramme-io/ui`**: The core library of visual primitives.
+* **`@ramme-io/create-app`** (This Repository): The quick start kit.
 
-## 🏗️ Project Structure
+---
 
-**`src/config/app.manifest.ts`**: The "Brain" of your app. Define your app's title, description, and high-level settings here.
-**`src/config/sitemap.ts`**: The "Skeleton." Define your pages and navigation structure here.
-**`src/core/component-registry.tsx`**: Maps JSON component names (from the builder) to actual React components.
-**`src/pages`**: Your actual page components.
-**`src/data`**: Mock data generators and seed files.
+## License
 
-## 🎨 Customization
-
-### changing the Theme
-Go to `src/index.css` or `tailwind.config.js` to update your brand colors.
-
-### Adding New Pages
-1.  Create a new component in `src/pages`.
-2.  Register it in your `sitemap.ts` (or the relevant template sitemap).
-3.  The `RouteGenerator` will automatically handle the routing!
-
-## 📚 Learn More
-
-- [Ramme UI Documentation](https://ramme.io/docs)
-- [Vite Documentation](https://vitejs.dev/)
-- [Tailwind CSS Documentation](https://tailwindcss.com/)
+Copyright © 2025 Excesspool Limited Liability Company.
+This project is licensed under the [MIT License](LICENSE).
 </file>
 
 <file path="template/src/config/app.manifest.ts">
@@ -7275,14 +7832,7 @@ export const dashboardSitemap: SitemapEntry[] = [
     icon: 'rocket',
     component: Welcome,
   },
-  // 2. The "Mission Control" Charts Page
-  {
-  id: 'overview',
-  path: 'overview',
-  title: 'Overview',
-  icon: 'layout-dashboard',
-  component: OverviewPage, 
-},
+
   // 3. ✅ The User Management Module
   {
     id: 'users',
@@ -7312,8 +7862,8 @@ import {
   Sidebar,
   type SidebarItem,
   ChatFAB,
-  type IconName, // Type for safety
-} from '@ramme-io/ui'; // ✅ Import only what exists in v1.2.0
+  type IconName, 
+} from '@ramme-io/ui'; 
 
 import { dashboardSitemap } from './dashboard.sitemap';
 import { SitemapProvider } from '../../engine/runtime/SitemapContext';
@@ -7322,7 +7872,9 @@ import AppHeader from '../../components/AppHeader';
 import { AIChatWidget } from '../../components/AIChatWidget';
 import { useWorkflowEngine } from '../../engine/runtime/useWorkflowEngine';
 
-// Main Layout Component
+// ✅ 1. IMPORT THE HOOK
+import { useDynamicSitemap } from '../../engine/runtime/useDynamicSitemap';
+
 const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -7330,39 +7882,39 @@ const DashboardLayout: React.FC = () => {
   
   useWorkflowEngine();
 
-  // 1. Transform Sitemap to Sidebar Items
-  // The new Sidebar expects a simple array of items.
+  // ✅ 2. GET LIVE DATA (Merges Static + Builder Data)
+  const liveSitemap = useDynamicSitemap(dashboardSitemap);
+
+  // ✅ 3. BUILD SIDEBAR FROM LIVE DATA
   const sidebarItems: SidebarItem[] = useMemo(() => {
-    return dashboardSitemap.map((route) => ({
+    // We map over 'liveSitemap' instead of 'dashboardSitemap'
+    return liveSitemap.map((route) => ({
       id: route.id,
       label: route.title,
-      icon: route.icon as IconName, // Ensure your sitemap strings match valid icon names
-      href: route.path ? `/dashboard/${route.path}` : '/dashboard',
-      // Note: v1.2.0 Sidebar currently handles top-level items. 
-      // If you need nested items, we would flatten them here or update Sidebar.tsx later.
+      icon: route.icon as IconName, 
+      // Handle the path logic safely
+      href: route.path.startsWith('/') ? route.path : `/dashboard/${route.path}`,
     }));
-  }, []);
+  }, [liveSitemap]); // Re-run whenever the Builder sends an update
 
-  // 2. Determine Active Item based on URL
+  // 4. Determine Active Item
   const activeItemId = useMemo(() => {
-    // Find the item whose href matches the start of the current path
     const active = sidebarItems.find(item => 
       item.href !== '/dashboard' && location.pathname.startsWith(item.href!)
     );
-    // Default to dashboard (first item) if no specific match
     return active?.id || sidebarItems[0]?.id;
   }, [location.pathname, sidebarItems]);
 
   return (
-    <SitemapProvider value={dashboardSitemap}>
+    // ✅ 5. PASS LIVE SITEMAP TO CONTEXT (For Breadcrumbs/Titles)
+    <SitemapProvider value={liveSitemap}>
       <PageTitleUpdater />
       
-      {/* 3. New Layout Structure (No Provider needed) */}
       <div className="flex h-screen bg-background text-foreground relative">
         
         <Sidebar
           className="relative border-border"
-          items={sidebarItems}
+          items={sidebarItems} // Now contains your new page!
           activeItemId={activeItemId}
           onNavigate={(item) => {
             if (item.href) navigate(item.href);
@@ -7386,7 +7938,6 @@ const DashboardLayout: React.FC = () => {
           </main>
         </div>
 
-        {/* --- AI COPILOT SECTION --- */}
         {isChatOpen && (
           <AIChatWidget onClose={() => setIsChatOpen(false)} />
         )}
@@ -7406,75 +7957,6 @@ const DashboardLayout: React.FC = () => {
 export default DashboardLayout;
 </file>
 
-<file path="README.md">
-# Create Ramme App
-
-[![NPM Version](https://img.shields.io/npm/v/@ramme-io/create-app.svg)](https://www.npmjs.com/package/@ramme-io/create-app) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-The easiest way to start a new **Ramme** project.
-This CLI tool scaffolds a production-ready React application configured with:
-- **@ramme/ui:** Our pre-built component library.
-- **Tailwind CSS:** Fully configured for the Ramme design system.
-- **Vite:** For lightning-fast development.
-- **TypeScript:** For type-safe code.
-
-## 🚀 Quick Start
-
-Get started in seconds. No global installation required.
-
-```bash
-npm create @ramme-io/app@latest
-# or
-npm init @ramme-io/app@latest
-```
-
-You will be prompted to name your project.
-
-**1. Enter the project directory**
-```bash
-cd my-new-project
-```
-
-**2. Install dependencies**
-```bash
-pnpm install
-# or npm install
-```
-
-**3. Start the dev server**
-```bash
-pnpm run dev
-```
-
-Your prototype is now running locally at `http://localhost:5173`.
-
----
-
-## The Tech Stack
-
-This starter kit is an opinionated selection of the best open-source tools available:
-
-* **Vite:** Next-generation tooling for instant server start and lightning-fast HMR (Hot Module Replacement).
-* **React:** The standard library for building composable user interfaces.
-* **TypeScript:** Statically typed JavaScript for scalable, robust application logic.
-* **Tailwind CSS:** A utility-first styling engine configured with Ramme design tokens.
-* **@ramme-io/ui:** A pre-installed suite of accessible, unstyled primitives based on Radix UI.
-
----
-
-## Project Links
-
-* **`@ramme-io/ui`**: The core library of visual primitives.
-* **`@ramme-io/create-app`** (This Repository): The quick start kit.
-
----
-
-## License
-
-Copyright © 2025 Excesspool Limited Liability Company.
-This project is licensed under the [MIT License](LICENSE).
-</file>
-
 <file path="template/pkg.json">
 {
   "name": "ramme-app",
@@ -7487,7 +7969,7 @@ This project is licensed under the [MIT License](LICENSE).
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ramme-io/ui": "^1.2.1",
+    "@ramme-io/ui": "^1.2.2",
     "mqtt": "^5.3.5",
     "zustand": "^4.5.0",
     "ag-grid-community": "^31.3.1",
@@ -7520,7 +8002,7 @@ This project is licensed under the [MIT License](LICENSE).
 <file path="package.json">
 {
   "name": "@ramme-io/create-app",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "type": "module",
   "bin": {
     "create-ramme-app": "./index.js"

@@ -9,36 +9,37 @@ import {
   Card,
   Alert,
   EmptyState,
-  ToggleSwitch
+  ToggleSwitch,
+  Button // Ensure Button is imported if used
 } from '@ramme-io/ui';
 
 // ✅ IMPORT YOUR CUSTOM COMPONENT
 import { SmartTable } from '../features/datagrid/SmartTable';
+import { SmartChart } from '../features/visualizations/SmartChart';
 
 export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
-  // IoT Primitives
+  // --- 1. Standard PascalCase Names (Keep these) ---
   DeviceCard,
-  
-  // Data Display
   StatCard,
   BarChart,
   LineChart,
   PieChart,
-  
-  // Tables
-  DataTable, // The raw grid
-  
-  // ✅ FIX: Map "SmartTable" to the actual SmartTable component
-  // (Previously it was aliased to DataTable, which broke the UI)
-  SmartTable: SmartTable, 
-  
-  // Layout & Feedback
+  DataTable,
+  SmartTable,
+  SmartChart,
   Card,
   Alert,
   EmptyState,
-  
-  // Forms/Controls
-  ToggleSwitch
+  ToggleSwitch,
+
+  // --- 2. ✅ ALIASES FOR BUILDER (snake_case -> Component) ---
+  'stat_card': StatCard,     // Fixes "Unknown Component: stat_card"
+  'chart_line': LineChart,   // Fixes "Unknown Component: chart_line"
+  'chart_bar': BarChart,     // Future-proofing
+  'chart_pie': PieChart,     // Future-proofing
+  'smart_table': SmartTable, // Future-proofing
+  'smart_chart': SmartChart, // Future-proofing
+  'button': Button || ((props: any) => <button {...props} />), // Fallback if Button isn't in UI lib
 };
 
 export const getComponent = (name: string) => {

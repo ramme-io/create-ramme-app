@@ -4,8 +4,8 @@ import {
   Sidebar,
   type SidebarItem,
   ChatFAB,
-  type IconName, // Type for safety
-} from '@ramme-io/ui'; // ✅ Import only what exists in v1.2.0
+  type IconName, 
+} from '@ramme-io/ui'; 
 
 import { dashboardSitemap } from './dashboard.sitemap';
 import { SitemapProvider } from '../../engine/runtime/SitemapContext';
@@ -14,7 +14,9 @@ import AppHeader from '../../components/AppHeader';
 import { AIChatWidget } from '../../components/AIChatWidget';
 import { useWorkflowEngine } from '../../engine/runtime/useWorkflowEngine';
 
-// Main Layout Component
+// ✅ 1. IMPORT THE HOOK
+import { useDynamicSitemap } from '../../engine/runtime/useDynamicSitemap';
+
 const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,39 +24,39 @@ const DashboardLayout: React.FC = () => {
   
   useWorkflowEngine();
 
-  // 1. Transform Sitemap to Sidebar Items
-  // The new Sidebar expects a simple array of items.
+  // ✅ 2. GET LIVE DATA (Merges Static + Builder Data)
+  const liveSitemap = useDynamicSitemap(dashboardSitemap);
+
+  // ✅ 3. BUILD SIDEBAR FROM LIVE DATA
   const sidebarItems: SidebarItem[] = useMemo(() => {
-    return dashboardSitemap.map((route) => ({
+    // We map over 'liveSitemap' instead of 'dashboardSitemap'
+    return liveSitemap.map((route) => ({
       id: route.id,
       label: route.title,
-      icon: route.icon as IconName, // Ensure your sitemap strings match valid icon names
-      href: route.path ? `/dashboard/${route.path}` : '/dashboard',
-      // Note: v1.2.0 Sidebar currently handles top-level items. 
-      // If you need nested items, we would flatten them here or update Sidebar.tsx later.
+      icon: route.icon as IconName, 
+      // Handle the path logic safely
+      href: route.path.startsWith('/') ? route.path : `/dashboard/${route.path}`,
     }));
-  }, []);
+  }, [liveSitemap]); // Re-run whenever the Builder sends an update
 
-  // 2. Determine Active Item based on URL
+  // 4. Determine Active Item
   const activeItemId = useMemo(() => {
-    // Find the item whose href matches the start of the current path
     const active = sidebarItems.find(item => 
       item.href !== '/dashboard' && location.pathname.startsWith(item.href!)
     );
-    // Default to dashboard (first item) if no specific match
     return active?.id || sidebarItems[0]?.id;
   }, [location.pathname, sidebarItems]);
 
   return (
-    <SitemapProvider value={dashboardSitemap}>
+    // ✅ 5. PASS LIVE SITEMAP TO CONTEXT (For Breadcrumbs/Titles)
+    <SitemapProvider value={liveSitemap}>
       <PageTitleUpdater />
       
-      {/* 3. New Layout Structure (No Provider needed) */}
       <div className="flex h-screen bg-background text-foreground relative">
         
         <Sidebar
           className="relative border-border"
-          items={sidebarItems}
+          items={sidebarItems} // Now contains your new page!
           activeItemId={activeItemId}
           onNavigate={(item) => {
             if (item.href) navigate(item.href);
@@ -78,7 +80,6 @@ const DashboardLayout: React.FC = () => {
           </main>
         </div>
 
-        {/* --- AI COPILOT SECTION --- */}
         {isChatOpen && (
           <AIChatWidget onClose={() => setIsChatOpen(false)} />
         )}

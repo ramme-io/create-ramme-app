@@ -1,7 +1,7 @@
 import React from 'react';
 import { getComponent } from '../../config/component-registry';
 // @ts-ignore
-import { useGeneratedSignals } from '../generated/hooks';
+import { useGeneratedSignals } from '../runtime/useSignalStore';
 import { getMockData } from '../../data/mockData';
 
 /**

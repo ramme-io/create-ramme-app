@@ -18,14 +18,7 @@ export const dashboardSitemap: SitemapEntry[] = [
     icon: 'rocket',
     component: Welcome,
   },
-  // 2. The "Mission Control" Charts Page
-  {
-  id: 'overview',
-  path: 'overview',
-  title: 'Overview',
-  icon: 'layout-dashboard',
-  component: OverviewPage, 
-},
+
   // 3. ✅ The User Management Module
   {
     id: 'users',

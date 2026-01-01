@@ -9,9 +9,12 @@ import {
   type ColDef,
   type GridApi 
 } from '@ramme-io/ui';
-import { getResourceMeta, getMockData } from '../../data/mockData';
+import { useJustInTimeSeeder } from '../../engine/runtime/useJustInTimeSeeder';
+import { getResourceMeta } from '../../data/mockData';
 import { AutoForm } from '../../components/AutoForm';
 import { useCrudLocalStorage } from '../../engine/runtime/useCrudLocalStorage';
+import { useManifest } from '../../engine/runtime/ManifestContext';
+import type { ResourceDefinition } from '../../engine/validation/schema';
 
 interface SmartTableProps {
   dataId: string;
@@ -24,11 +27,37 @@ export const SmartTable: React.FC<SmartTableProps> = ({
   title}) => {
   const { addToast } = useToast();
   
-  // 1. DATA KERNEL
-  const meta = getResourceMeta(dataId);
-  const seedData = useMemo(() => getMockData(dataId) || [], [dataId]);
+  const manifest = useManifest();
+
+  // ✅ FIX: Normalize 'meta' to always match 'ResourceDefinition'
+  const meta = useMemo<ResourceDefinition | null>(() => {
+    // 1. Try Dynamic Manifest (Preview Mode)
+    const dynamicResource = manifest.resources?.find((r: ResourceDefinition) => r.id === dataId);
+    
+    if (dynamicResource) {
+      return dynamicResource;
+    }
+
+    // 2. Try Static Data (Deployed Mode)
+    const staticMeta = getResourceMeta(dataId);
+    
+    if (staticMeta) {
+      // ⚠️ Type Patch: Inject 'id' so it satisfies ResourceDefinition
+      // The static file uses the object key as the ID, but the type expects it inline.
+      return {
+        ...staticMeta,
+        id: dataId,
+        // Ensure 'type' strings from mockData match the Zod enum if needed, 
+        // but typically 'text' | 'number' overlaps fine.
+      } as unknown as ResourceDefinition; 
+    }
+
+    return null;
+  }, [manifest, dataId]);
+
+  // ✅ JIT Seeder now receives a valid ResourceDefinition
+  const seedData = useJustInTimeSeeder(dataId, meta);
   
-  // We use the CRUD hook to persist changes to localStorage
   const { 
     data: rowData, 
     createItem, 
@@ -36,14 +65,14 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     deleteItem 
   } = useCrudLocalStorage<any>(`ramme_db_${dataId}`, seedData);
 
-  // 2. UI STATE
+  // --- UI STATE ---
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<any>(null);
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
   const [quickFilterText, setQuickFilterText] = useState('');
 
-  // 3. COLUMN DEFINITIONS
+  // --- COLUMN DEFINITIONS ---
   const columns = useMemo<ColDef[]>(() => {
     if (!meta?.fields) return [];
 
@@ -57,7 +86,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
         flex: 1,
       };
 
-      // Smart Formatting based on type
       if (f.type === 'currency') {
         col.valueFormatter = (p: any) => p.value ? `$${Number(p.value).toLocaleString()}` : '';
       }
@@ -84,14 +112,12 @@ export const SmartTable: React.FC<SmartTableProps> = ({
       return col;
     });
 
-    // Add Checkbox Selection to the first column
     if (generatedCols.length > 0) {
       generatedCols[0].headerCheckboxSelection = true;
       generatedCols[0].checkboxSelection = true;
       generatedCols[0].minWidth = 180;
     }
 
-    // Add Actions Column
     generatedCols.push({
       headerName: "Actions",
       field: "id",
@@ -109,7 +135,7 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     return generatedCols;
   }, [meta]);
 
-  // 4. HANDLERS
+  // --- HANDLERS ---
   const onGridReady = useCallback((params: any) => {
     setGridApi(params.api);
   }, []);
@@ -140,14 +166,10 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     setIsEditOpen(false);
   };
 
-  // --- RENDER ---
   return (
     <Card className="flex flex-col h-[600px] border border-border shadow-sm overflow-hidden bg-card">
       
-      {/* HEADER TOOLBAR */}
       <div className="p-4 border-b border-border flex justify-between items-center gap-4 bg-muted/5">
-        
-        {/* Left: Title or Bulk Actions */}
         {selectedRows.length > 0 ? (
           <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-200">
             <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-md">
@@ -173,7 +195,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
           </div>
         )}
 
-        {/* Right: Actions & Filter */}
         <div className="flex items-center gap-2">
           <div className="w-64">
             <SearchInput 
@@ -181,8 +202,7 @@ export const SmartTable: React.FC<SmartTableProps> = ({
               value={quickFilterText}
               onChange={(e) => {
                 setQuickFilterText(e.target.value);
-                gridApi?.setQuickFilter(e.target.value);
-              }}
+                gridApi?.updateGridOptions({ quickFilterText: e.target.value });              }}
             />
           </div>
           <div className="h-6 w-px bg-border mx-1" />
@@ -192,7 +212,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
         </div>
       </div>
 
-      {/* AG GRID */}
       <div className="flex-1 w-full bg-card relative">
         <DataTable 
           rowData={rowData} 
@@ -208,7 +227,6 @@ export const SmartTable: React.FC<SmartTableProps> = ({
         />
       </div>
 
-      {/* EDIT DRAWER */}
       <AutoForm
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}

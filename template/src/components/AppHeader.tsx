@@ -4,9 +4,9 @@
  * @description This is the global application header.
  *
  * @developer_notes
- * STRATEGIC REFACTOR (10/21/2025):
- * 1. Updated logo to include both the `orange.png` image and "Ramme" text.
- * 2. Kept all A.D.A.P.T. manifest, asChild, and z-index fixes.
+ * STRATEGIC REFACTOR:
+ * 1. Cleaned up Ghost Bridge telemetry for production feel.
+ * 2. Kept all A.D.A.P.T. navigation and z-index fixes.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -25,7 +25,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { appManifest } from '../config/navigation';
 import type { ManifestLink } from '../engine/types/manifest-types';
 import TemplateSwitcher from './TemplateSwitcher';
-import rammeLogo from '../assets/orange.png'; // <-- 1. IMPORT THE LOGO
+import rammeLogo from '../assets/orange.png'; 
 
 const AppHeader: React.FC = () => {
   const { theme, availableThemes, setTheme } = useTheme();
@@ -47,13 +47,13 @@ const AppHeader: React.FC = () => {
     // Z-INDEX FIX: Set to z-50 to render above the z-40 sidebar.
     <header className="flex items-center justify-between p-4 bg-card border-b border-border shadow-sm sticky top-0 z-50">
       
-      {/* --- 2. UPDATED LOGO BLOCK --- */}
-      {/* Logo - links to dashboard home */}
+      {/* --- 1. LOGO BLOCK --- */}
       <Link to="/dashboard" className="flex items-center gap-2">
         <img src={rammeLogo} alt="Ramme Logo" className="h-8 w-auto" />
         <h1 className="text-2xl font-bold text-text">Ramme</h1>
       </Link>
 
+      {/* --- 2. USER ACTIONS --- */}
       <div className="flex items-center gap-4">
         <TemplateSwitcher />
         {user && (
@@ -64,14 +64,14 @@ const AppHeader: React.FC = () => {
               </button>
             }
           >
-            {/* 1. User Info (Static) */}
+            {/* User Info */}
             <div className="p-2 text-sm text-muted-foreground">
               <p className="font-semibold text-text">{user.name}</p>
               <p>{user.email}</p>
             </div>
             <MenuDivider />
 
-            {/* 2. Designer-Controlled Nav Links */}
+            {/* Navigation Links */}
             {userNavLinks.map((link: ManifestLink) => (
               <MenuItem
                 key={link.id}
@@ -83,7 +83,7 @@ const AppHeader: React.FC = () => {
             ))}
             <MenuDivider />
 
-            {/* 3. App-Specific: Theme Switcher */}
+            {/* Theme Switcher */}
             <div className="p-2 text-sm text-muted-foreground">
               <p>
                 Active Theme:{' '}
@@ -100,7 +100,7 @@ const AppHeader: React.FC = () => {
             ))}
             <MenuDivider />
 
-            {/* 4. App-Specific: Actions */}
+            {/* Actions */}
             <MenuItem onClick={handleResetData} icon={<Icon name="refresh-cw" />}>
               Reset Data
             </MenuItem>
