@@ -1,6 +1,6 @@
 {
   "name": "@ramme-io/create-app",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "type": "module",
   "bin": {
     "create-ramme-app": "./index.js"
