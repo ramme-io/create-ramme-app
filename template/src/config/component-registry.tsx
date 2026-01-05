@@ -1,58 +1,53 @@
 import React from 'react';
-import {
-  DeviceCard,
-  StatCard,
-  BarChart,
-  LineChart,
-  PieChart,
-  DataTable, 
-  Card,
-  Alert,
-  EmptyState,
-  ToggleSwitch,
-  Button
-} from '@ramme-io/ui';
-// ✅ IMPORT CUSTOM COMPONENTS
+// ✅ 1. Import the Master Registry from the UI Library (Tier 1: Atoms)
+// This instantly pulls in Button, Card, Inputs, Layouts, Navigation, etc.
+import { AUTO_REGISTRY } from '@ramme-io/ui';
+
+// ✅ 2. Import Local "Smart Blocks" (Tier 2: Logic)
+// These exist only in the App (Starter), not the UI library.
 import { SmartTable } from '../features/datagrid/SmartTable';
 import { SmartChart } from '../features/visualizations/SmartChart';
 
+// ✅ 3. MERGE EVERYTHING
 export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
-  DeviceCard,
-  StatCard,
-  BarChart,
-  LineChart,
-  PieChart,
-  DataTable,
+  // A. The Entire UI Library (~50+ components)
+  ...AUTO_REGISTRY,
+
+  // B. The Smart Blocks (Data-Connected)
   SmartTable,
   SmartChart,
-  Card,
-  Alert,
-  EmptyState,
-  ToggleSwitch,
 
-  // --- ALIASES FOR BUILDER (snake_case -> Component) ---
-  'stat_card': StatCard,
-  'chart_line': LineChart,
-  'chart_bar': BarChart,
-  'chart_pie': PieChart,
+  // C. Legacy Aliases (For older AI prompts/manifests)
   'smart_table': SmartTable,
   'smart_chart': SmartChart,
-  'button': Button || ((props: any) => <button {...props} />),
+  'stat_card': AUTO_REGISTRY['StatCard'],
+  'chart_line': AUTO_REGISTRY['LineChart'],
+  'chart_bar': AUTO_REGISTRY['BarChart'],
+  'chart_pie': AUTO_REGISTRY['PieChart'],
 };
 
+// --- COMPONENT RESOLVER ENGINE ---
 export const getComponent = (name: string) => {
-  // Normalize key (e.g. 'smart_table' -> 'SmartTable' if needed, or simple lookup)
-  const Component = COMPONENT_MAP[name] || COMPONENT_MAP[name.toLowerCase()] || COMPONENT_MAP[name.replace(/_/g, '')];
+  // 1. Normalize the key to handle case-insensitivity and snake_case
+  // e.g. "page_header" -> "PageHeader", "button" -> "Button"
+  const normalizedName = name.replace(/_/g, '').toLowerCase();
+  
+  // 2. Lookup Strategy
+  // We check the exact name, then the lowercase version, then the normalized version
+  const Component = 
+    COMPONENT_REGISTRY[name] || 
+    COMPONENT_MAP_LOWER[name.toLowerCase()] || 
+    COMPONENT_MAP_NORMALIZED[normalizedName];
 
+  // 3. Safety Net (Ghost Placeholder)
   if (!Component) {
-    console.warn(`[Registry] Unknown component: "${name}"`);
+    console.warn(`[Registry] ❌ Unknown component: "${name}"`);
     
-    // ✅ OPTIMIZATION: Return a "Ghost" placeholder instead of crashing
-    // This maintains layout stability and informs the user.
     return ({ ...props }) => (
-      <div className="p-4 border-2 border-dashed border-red-200 bg-red-50 rounded-lg flex flex-col items-center justify-center text-red-400 min-h-[100px] h-full w-full">
-        <span className="text-xs font-mono font-bold uppercase">{name}</span>
-        <span className="text-[10px] mt-1 opacity-75">Component Not Found</span>
+      <div className="p-4 border-2 border-dashed border-red-200 bg-red-50 rounded-lg flex flex-col items-center justify-center text-red-400 min-h-[100px] h-full w-full animate-in fade-in">
+        <span className="text-xs font-mono font-bold uppercase tracking-wider">{name}</span>
+        <span className="text-[10px] mt-1 opacity-75">Component Missing</span>
+        {/* Hidden debug data for developers */}
         <div className="hidden">{JSON.stringify(props)}</div>
       </div>
     );
@@ -60,10 +55,15 @@ export const getComponent = (name: string) => {
   return Component;
 };
 
-// Helper mapping for normalization
-const COMPONENT_MAP = Object.keys(COMPONENT_REGISTRY).reduce((acc, key) => {
-    acc[key] = COMPONENT_REGISTRY[key];
+// --- OPTIMIZATION: PRE-CALCULATED LOOKUP MAPS ---
+// We generate these once on startup so we don't map/reduce on every render.
+
+const COMPONENT_MAP_LOWER = Object.keys(COMPONENT_REGISTRY).reduce((acc, key) => {
     acc[key.toLowerCase()] = COMPONENT_REGISTRY[key];
+    return acc;
+}, {} as Record<string, React.FC<any>>);
+
+const COMPONENT_MAP_NORMALIZED = Object.keys(COMPONENT_REGISTRY).reduce((acc, key) => {
     acc[key.replace(/_/g, '').toLowerCase()] = COMPONENT_REGISTRY[key];
     return acc;
 }, {} as Record<string, React.FC<any>>);
