@@ -5,7 +5,6 @@ import { ThemeProvider } from '@ramme-io/ui';
 import { AuthProvider } from './features/auth/AuthContext';
 import { MqttProvider } from './engine/runtime/MqttContext';
 
-
 // --- 1. IMPORT AUTH CLUSTER ---
 import { AuthLayout } from './features/auth/pages/AuthLayout';
 import LoginPage from './features/auth/pages/LoginPage';
@@ -30,7 +29,6 @@ import { initializeDataLake } from './engine/runtime/data-seeder';
 import ScrollToTop from './components/ScrollToTop';
 import HashLinkScroll from './components/HashLinkScroll';
 
-
 function App() {
   
   // Trigger data seeding on mount
@@ -41,7 +39,6 @@ function App() {
   const liveDashboardRoutes = useDynamicSitemap(dashboardSitemap);
 
   console.log("🗺️ ROUTER MAP:", liveDashboardRoutes.map(r => ({ path: r.path, id: r.id })));
-  
 
   return (
     <ThemeProvider>
@@ -61,6 +58,9 @@ function App() {
 
             {/* Fallback for legacy /login access */}
             <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+            
+            {/* ✅ FIX: Redirect legacy /signup to the new location */}
+            <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
 
             {/* --- PROTECTED APP ROUTES --- */}
             <Route element={<ProtectedRoute />}>
@@ -68,7 +68,7 @@ function App() {
 
               {/* Dashboard Template */}
               <Route path="/dashboard/*" element={<DashboardLayout />}>
-              <Route index element={<Navigate to="welcome" replace />} />
+                <Route index element={<Navigate to="welcome" replace />} />
                 {generateRoutes(liveDashboardRoutes)}
               </Route>
 

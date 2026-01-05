@@ -34,11 +34,7 @@ const LoginPage: React.FC = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 transition-colors duration-300">
       
-      {/* 2. REPLACED <Card> with a native <div> 
-        - Removes conflicting library styles (border-border vs border-t-primary).
-        - Adds 'sm:w-[400px]' for better mobile responsiveness.
-        - Adds 'bg-card' explicitly for theme support.
-      */}
+      {/* 2. REPLACED <Card> with a native <div> */}
       <div className="w-full sm:w-[400px] p-8 rounded-xl shadow-2xl border-t-4 border-t-primary bg-card ring-1 ring-black/5 dark:ring-white/10">
         
         {/* Header */}
@@ -68,7 +64,6 @@ const LoginPage: React.FC = () => {
             autoComplete="email"
             value={formData.email}
             onChange={handleChange}
-            // Explicit background to prevent transparency issues
             className="bg-background"
           />
           
@@ -94,7 +89,8 @@ const LoginPage: React.FC = () => {
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-border text-center text-sm">
           <span className="text-muted-foreground">Don't have an account? </span>
-          <Link to="/signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
+          [cite_start]{/* ✅ CRITICAL FIX: Updated path to /auth/signup [cite: 1937] */}
+          <Link to="/auth/signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
             Create one
           </Link>
         </div>

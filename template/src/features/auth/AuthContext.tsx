@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 // Import the User type from your mock data to ensure shape consistency
-import type { User } from '../../data/mockData'; 
+import type { User } from '../../data/mockData';
+// ✅ IMPORT SEEDER AND DATA (Required for Self-Healing)
+import { initializeDataLake } from '../../engine/runtime/data-seeder';
+import { SEED_USERS } from '../../data/mockData';
 
 /**
  * @file AuthContext.tsx
@@ -12,9 +15,9 @@ import type { User } from '../../data/mockData';
  * 1. **Session Persistence:** Checks localStorage on boot.
  * 2. **Data Lake Connection:** Reads from 'ramme_db_users' to validate real accounts.
  * 3. **Simulation:** Adds artificial latency to test loading states.
+ * 4. **Self-Healing:** Automatically re-seeds data if the database is found empty during login.
  */
 
-// ✅ CRITICAL FIX: Match the key used by useCrudLocalStorage and data-seeder
 const USER_DB_KEY = 'ramme_db_users'; 
 const SESSION_KEY = 'ramme_session';
 
@@ -49,8 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
-    // ✅ FIX: We now use the 'password' variable to satisfy TypeScript (ts(6133))
-    // This also adds a layer of realism to the mock validation.
+    // 1. Validation
     if (!password || password.length < 3) {
       setIsLoading(false);
       throw new Error("Password must be at least 3 characters");
@@ -61,19 +63,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Simulate API Delay
     await new Promise(resolve => setTimeout(resolve, 600));
 
-    // ✅ READ FROM THE CORRECT DATA LAKE
-    const storedUsers = localStorage.getItem(USER_DB_KEY);
+    // 2. READ DATA LAKE
+    let storedUsers = localStorage.getItem(USER_DB_KEY);
     
-    // Debugging: See what is actually in storage
-    if (!storedUsers) {
-      console.warn(`⚠️ Data Lake '${USER_DB_KEY}' is empty! Did you run the seeder or signup?`);
-    } else {
-      // Optional: Log count for debugging (remove in production)
-      // console.log(`✅ Data Lake found. Users in DB:`, JSON.parse(storedUsers).length);
+    // 🛡️ SELF-HEALING LOGIC: If DB is empty/missing, re-seed it NOW.
+    // This fixes the "User not found" error on fresh installs.
+    if (!storedUsers || JSON.parse(storedUsers).length === 0) {
+      console.warn("⚠️ Data Lake empty during login. Triggering emergency re-seed...");
+      initializeDataLake(); // Force the seed
+      storedUsers = localStorage.getItem(USER_DB_KEY); // Read it again immediately
     }
 
     const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
     
+    // 3. Authenticate
     // Case-insensitive email check
     const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
@@ -83,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(SESSION_KEY, JSON.stringify(foundUser));
       setIsLoading(false);
     } else {
+      // Debugging help: List available users if login fails
       console.error("❌ User NOT found. Available emails:", users.map(u => u.email));
       setIsLoading(false);
       throw new Error("Invalid email or password");
