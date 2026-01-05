@@ -1,5 +1,4 @@
-// ✅ Match the export from your new mockData.ts
-import { DATA_REGISTRY } from '../../data/mockData'; 
+import { DATA_REGISTRY } from '../../data/mockData';
 
 /**
  * @file data-seeder.ts
@@ -10,16 +9,15 @@ import { DATA_REGISTRY } from '../../data/mockData';
  * from `mockData.ts` into the browser's storage.
  */
 
-// 🔒 SHARED CONSTANT: Ensure everyone uses the same key format
-const DB_PREFIX = 'ramme_mock_'; 
+// 🔒 CRITICAL FIX: Changed from 'ramme_mock_' to 'ramme_db_' to match AuthContext
+const DB_PREFIX = 'ramme_db_'; 
 
 export const initializeDataLake = () => {
   if (typeof window === 'undefined') return;
 
   console.groupCollapsed('🌊 [Data Lake] Initialization');
-  
   Object.entries(DATA_REGISTRY).forEach(([key, seedData]) => {
-    // ✅ FIX: Use the prefix so getMockData() can find it
+    // This now generates 'ramme_db_users', matching AuthContext
     const storageKey = `${DB_PREFIX}${key}`; 
     const existing = localStorage.getItem(storageKey);
 
@@ -30,7 +28,6 @@ export const initializeDataLake = () => {
       console.log(`✅ Collection exists: ${key}`);
     }
   });
-
   console.groupEnd();
 };
 
