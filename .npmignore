@@ -1,0 +1,22 @@
+# Ignore dependencies
+node_modules
+template/node_modules
+
+# Ignore build artifacts
+template/dist
+template/.next
+template/out
+template/build
+
+# Ignore local config files in the template
+template/package.json
+template/package-lock.json
+template/pnpm-lock.yaml
+template/yarn.lock
+template/.env
+template/.env.local
+
+# System files
+.DS_Store
+.git
+.gitignore
