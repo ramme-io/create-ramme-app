@@ -13,8 +13,6 @@ import PageTitleUpdater from '../../components/PageTitleUpdater';
 import AppHeader from '../../components/AppHeader';
 import { AIChatWidget } from '../../components/AIChatWidget';
 import { useWorkflowEngine } from '../../engine/runtime/useWorkflowEngine';
-
-// ✅ 1. IMPORT THE HOOK
 import { useDynamicSitemap } from '../../engine/runtime/useDynamicSitemap';
 
 const DashboardLayout: React.FC = () => {
@@ -24,22 +22,19 @@ const DashboardLayout: React.FC = () => {
   
   useWorkflowEngine();
 
-  // ✅ 2. GET LIVE DATA (Merges Static + Builder Data)
+  // 2. GET LIVE DATA (Merges Static + Builder Data)
   const liveSitemap = useDynamicSitemap(dashboardSitemap);
 
-  // ✅ 3. BUILD SIDEBAR FROM LIVE DATA
+  // 3. BUILD SIDEBAR FROM LIVE DATA
   const sidebarItems: SidebarItem[] = useMemo(() => {
-    // We map over 'liveSitemap' instead of 'dashboardSitemap'
     return liveSitemap.map((route) => ({
       id: route.id,
       label: route.title,
       icon: route.icon as IconName, 
-      // Handle the path logic safely
       href: route.path.startsWith('/') ? route.path : `/dashboard/${route.path}`,
     }));
-  }, [liveSitemap]); // Re-run whenever the Builder sends an update
+  }, [liveSitemap]);
 
-  // 4. Determine Active Item
   const activeItemId = useMemo(() => {
     const active = sidebarItems.find(item => 
       item.href !== '/dashboard' && location.pathname.startsWith(item.href!)
@@ -48,7 +43,6 @@ const DashboardLayout: React.FC = () => {
   }, [location.pathname, sidebarItems]);
 
   return (
-    // ✅ 5. PASS LIVE SITEMAP TO CONTEXT (For Breadcrumbs/Titles)
     <SitemapProvider value={liveSitemap}>
       <PageTitleUpdater />
       
@@ -56,7 +50,7 @@ const DashboardLayout: React.FC = () => {
         
         <Sidebar
           className="relative border-border"
-          items={sidebarItems} // Now contains your new page!
+          items={sidebarItems}
           activeItemId={activeItemId}
           onNavigate={(item) => {
             if (item.href) navigate(item.href);
@@ -75,7 +69,10 @@ const DashboardLayout: React.FC = () => {
 
         <div className="flex flex-col flex-1 overflow-hidden">
           <AppHeader />
-          <main className="flex-1 overflow-y-auto p-8 bg-muted/20">
+          {/* ✅ FIX: Removed 'p-8'. Changed to 'p-0' (implied) or just removed class.
+              We keep 'bg-muted/20' for the app background. 
+              The StandardPageLayout inside Outlet now controls the margins. */}
+          <main className="flex-1 overflow-y-auto bg-muted/20">
             <Outlet />
           </main>
         </div>

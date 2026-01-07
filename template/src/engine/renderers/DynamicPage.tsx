@@ -1,23 +1,23 @@
-import React, { Component, type ErrorInfo, useMemo } from 'react';
-import { PageHeader, Alert, Badge } from '@ramme-io/ui';
+import React, { Component, useMemo } from 'react';
+import { Alert, Badge } from '@ramme-io/ui';
 import { useManifest, useBridgeStatus } from '../runtime/ManifestContext';
 import { getComponent } from '../../config/component-registry';
-import { getMockData } from '../../data/mockData'; // Keep as fallback
+import { getMockData } from '../../data/mockData';
 import { Wifi, WifiOff, AlertTriangle, Loader2, Database, Wand2 } from 'lucide-react';
+// ✅ Import Core Layout
+import { StandardPageLayout } from '../../components/layout/StandardPageLayout';
 
-// --- 🛠️ JIT DATA GENERATOR ---
-// This ensures the preview ALWAYS has data, even for new resources not yet in the DB.
+// ... (Keep existing generateJitData & BlockErrorBoundary logic unchanged) ...
+// (Re-pasting helper functions omitted for brevity, assume they are present)
 const generateJitData = (resourceDef: any, count = 10) => {
   if (!resourceDef) return [];
-  
   return Array.from({ length: count }).map((_, i) => {
     const row: any = { id: i + 1 };
     resourceDef.fields.forEach((f: any) => {
-      // Intelligent Mocking based on field type
       if (f.type === 'status') {
         row[f.key] = ['Active', 'Pending', 'Closed', 'Archived'][Math.floor(Math.random() * 4)];
       } else if (f.type === 'boolean') {
-        row[f.key] = Math.random() > 0.3; // 70% true
+        row[f.key] = Math.random() > 0.3; 
       } else if (f.type === 'number' || f.type === 'currency') {
         row[f.key] = Math.floor(Math.random() * 1000) + 100;
       } else if (f.type === 'date') {
@@ -32,7 +32,6 @@ const generateJitData = (resourceDef: any, count = 10) => {
   });
 };
 
-// --- ERROR BOUNDARY ---
 class BlockErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, error: string }> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: '' }; }
   static getDerivedStateFromError(error: any) { return { hasError: true, error: error.message }; }
@@ -48,7 +47,6 @@ class BlockErrorBoundary extends Component<{ children: React.ReactNode }, { hasE
   }
 }
 
-// --- MAIN RENDERER ---
 export const DynamicPage = ({ pageId }: { pageId: string }) => {
   const manifest = useManifest();
   const status = useBridgeStatus();
@@ -64,22 +62,21 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
     );
   }
 
+  // Define the "Live Mode" badge as an action element for the header
+  const statusBadge = (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${isLive ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500'}`}>
+      {isLive ? <Wifi size={14} className="text-green-600 animate-pulse"/> : <WifiOff size={14} />}
+      {isLive ? 'LIVE PREVIEW' : 'STATIC MODE'}
+    </div>
+  );
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-300 pb-20 p-6 md:p-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">{page.title}</h1>
-          {page.description && <p className="text-muted-foreground text-lg">{page.description}</p>}
-        </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${isLive ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500'}`}>
-          {isLive ? <Wifi size={14} className="text-green-600 animate-pulse"/> : <WifiOff size={14} />}
-          {isLive ? 'LIVE PREVIEW' : 'STATIC MODE'}
-        </div>
-      </div>
-      
-      {/* Grid Layout */}
-      <div className="grid gap-8">
+    <StandardPageLayout 
+      title={page.title} 
+      description={page.description}
+      actions={statusBadge}
+    >
+      <div className="grid gap-6 md:gap-8">
         {page.sections?.map((section: any) => (
           <section key={section.id} className="space-y-4">
             {section.title && (
@@ -87,30 +84,24 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{section.title}</h3>
               </div>
             )}
-            <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` }}>
+            <div className="grid gap-4 md:gap-6" style={{ gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` }}>
               {section.blocks.map((block: any) => {
                 const Component = getComponent(block.type);
                 const safeDataId = block.props.dataId?.toLowerCase();
                 
-                // --- 🛡️ HYBRID DATA STRATEGY ---
                 let resolvedData: any[] = [];
                 let isGenerated = false;
                 let autoColumns = undefined;
 
                 if (safeDataId) {
-                  // 1. Try Local Storage first
                   resolvedData = getMockData(safeDataId); 
-                  
-                  // 2. If empty, Generate JIT Data from Manifest
                   if (!resolvedData || resolvedData.length === 0) {
                      const resourceDef = manifest.resources?.find((r: any) => r.id.toLowerCase() === safeDataId);
                      if (resourceDef) {
                         resolvedData = generateJitData(resourceDef);
-                        isGenerated = true; // Flag for debug overlay
+                        isGenerated = true;
                      }
                   }
-
-                  // 3. Auto-Generate Table Columns
                   const resourceDef = manifest.resources?.find((r: any) => r.id.toLowerCase() === safeDataId);
                   if (resourceDef && !block.props.columnDefs) {
                     autoColumns = resourceDef.fields.map((f: any) => ({
@@ -123,7 +114,6 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
                 return (
                   <div key={block.id} style={{ gridColumn: `span ${block.layout?.colSpan || 1}`, gridRow: `span ${block.layout?.rowSpan || 1}` }} className="relative group">
                      <BlockErrorBoundary>
-                        {/* Debug Overlay */}
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1 pointer-events-none">
                            <div className={`text-white text-[10px] px-2 py-1 rounded backdrop-blur-md flex items-center gap-1 ${isGenerated ? 'bg-amber-600/90' : 'bg-black/80'}`}>
                               {block.type}
@@ -145,6 +135,6 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
           </section>
         ))}
       </div>
-    </div>
+    </StandardPageLayout>
   );
 };

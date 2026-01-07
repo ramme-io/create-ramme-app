@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  PageHeader,
   DataTable,
   Button,
   useToast,
@@ -9,22 +8,15 @@ import {
   type ColDef,
   type ICellRendererParams,
 } from '@ramme-io/ui';
-
-// 1. REMOVE: userService and old User types
-// import { userService } from '../api/user.service';
-// import type { User } from '../api/user.types';
-
-// 2. ADD: The Engine Hook & Shared Data
 import { useCrudLocalStorage } from '../../../engine/runtime/useCrudLocalStorage';
 import { SEED_USERS, type User } from '../../../data/mockData';
-
 import UserDrawer from '../components/UserDrawer';
+// ✅ Import Core Layout
+import { StandardPageLayout } from '../../../components/layout/StandardPageLayout';
 
 const UsersPage: React.FC = () => {
   const { addToast } = useToast();
   
-  // 3. REPLACE: Manual state fetching with the Reactive Engine
-  // This automatically loads 'ramme_db_users' and keeps it in sync.
   const { 
     data: users, 
     createItem, 
@@ -35,8 +27,6 @@ const UsersPage: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-
-  // (Removed refreshData & useEffect - the hook handles this automatically)
 
   const handleOpenDrawer = (user: User | null = null) => {
     setEditingUser(user);
@@ -53,20 +43,17 @@ const UsersPage: React.FC = () => {
   const handleSave = (_id: string, data: Partial<User>) => {
     try {
       if (editingUser) {
-        // Update existing user
         updateItem({ ...editingUser, ...data } as User);
         addToast('User updated', 'success');
       } else {
-        // Create new user (Engine handles ID generation)
         createItem({
           ...data,
-          role: data.role || 'viewer', // Ensure defaults
+          role: data.role || 'viewer',
           status: data.status || 'active',
           joinedAt: new Date().toISOString()
         } as User);
         addToast('User created', 'success');
       }
-      // Close drawer
       setIsDrawerOpen(false);
     } catch (error) {
       addToast('Error saving user', 'error');
@@ -106,45 +93,47 @@ const UsersPage: React.FC = () => {
         </div>
       ),
     },
-  ], [deleteItem]); // Added dependency
+  ], [deleteItem]);
 
   return (
-    <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col">
-      <PageHeader
-        title="User Management"
-        description="Manage system access and permissions."
-        actions={
-          <Button variant="primary" iconLeft="plus" onClick={() => handleOpenDrawer()}>
-            Add User
-          </Button>
-        }
-      />
-      
-      <div className="w-full max-w-sm">
-         <Input 
-            placeholder="Search users..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-         />
-      </div>
-      
-      <DataTable
-        rowData={users}
-        columnDefs={columnDefs}
-        height="100%"
-        quickFilterText={searchTerm} 
-        pagination
-        paginationPageSize={10}
-        paginationPageSizeSelector={[10, 25, 50]}
-      />
+    <StandardPageLayout
+      title="User Management"
+      description="Manage system access and permissions."
+      actions={
+        <Button variant="primary" iconLeft="plus" onClick={() => handleOpenDrawer()}>
+          Add User
+        </Button>
+      }
+    >
+      <div className="space-y-6 h-full flex flex-col">
+        <div className="w-full max-w-sm">
+           <Input 
+              placeholder="Search users..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+           />
+        </div>
+        
+        <div className="flex-1 min-h-[500px]">
+          <DataTable
+            rowData={users}
+            columnDefs={columnDefs}
+            height="100%"
+            quickFilterText={searchTerm} 
+            pagination
+            paginationPageSize={10}
+            paginationPageSizeSelector={[10, 25, 50]}
+          />
+        </div>
 
-      <UserDrawer 
-        isOpen={isDrawerOpen} 
-        onClose={() => setIsDrawerOpen(false)} 
-        user={editingUser}
-        onSave={handleSave}
-      />
-    </div>
+        <UserDrawer 
+          isOpen={isDrawerOpen} 
+          onClose={() => setIsDrawerOpen(false)} 
+          user={editingUser}
+          onSave={handleSave}
+        />
+      </div>
+    </StandardPageLayout>
   );
 };
 

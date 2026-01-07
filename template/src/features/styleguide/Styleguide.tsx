@@ -14,15 +14,12 @@ const Styleguide: React.FC = () => {
   }, [sitemap]);
 
   // 2. Transform to Sidebar Items
-const navItems = useMemo<SidebarItem[]>(() => {
+  const navItems = useMemo<SidebarItem[]>(() => {
     if (!styleguideSection?.children) return [];
 
-    // ✅ FIX: Remove the explicit ": { ... }" type. Let TS infer 'child' automatically.
     return styleguideSection.children.map((child) => ({
       id: child.id,
       label: child.title,
-      // We cast to IconName because we know the string is a valid icon, 
-      // and we provide a fallback 'hash' if it's undefined.
       icon: (child.icon as IconName) || 'hash', 
       href: child.path ? `/docs/styleguide/${child.path}` : '/docs/styleguide',
     }));
@@ -44,8 +41,10 @@ const navItems = useMemo<SidebarItem[]>(() => {
   return (
     <div className="flex w-full min-h-[calc(100vh-7rem)]">
       {/* SIDEBAR */}
-      <div className="sticky top-[7rem] h-[calc(100vh-7rem)] z-20">
+      <div className="sticky top-[7rem] h-[calc(100vh-7rem)] z-20 hidden md:block">
         <Sidebar
+          // ✅ FIX 1: Removed 'w-64'. Let the Sidebar component manage its own width.
+          // ✅ FIX 2: Added 'h-full' so it fills the sticky container perfectly.
           className="h-full border-r border-border bg-card/50 backdrop-blur-sm"
           items={navItems}
           activeItemId={activeItemId}
@@ -62,10 +61,10 @@ const navItems = useMemo<SidebarItem[]>(() => {
       </div>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 min-w-0 bg-background overflow-x-hidden">
-        {/* ADDED: Max width constraint + centering */}
-        <div className="container max-w-7xl mx-auto p-6 md:p-10 animate-in fade-in duration-500">
-          <Outlet />
+      {/* ✅ FIX 3: Re-added padding (p-6) so content doesn't hit the edges. */}
+      <main className="flex-1 min-w-0 bg-background overflow-x-hidden p-6 md:p-10">
+        <div className="max-w-7xl mx-auto">
+           <Outlet />
         </div>
       </main>
     </div>

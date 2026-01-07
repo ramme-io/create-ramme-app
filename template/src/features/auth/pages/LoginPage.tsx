@@ -89,7 +89,7 @@ const LoginPage: React.FC = () => {
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-border text-center text-sm">
           <span className="text-muted-foreground">Don't have an account? </span>
-          [cite_start]{/* ✅ CRITICAL FIX: Updated path to /auth/signup [cite: 1937] */}
+
           <Link to="/auth/signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
             Create one
           </Link>

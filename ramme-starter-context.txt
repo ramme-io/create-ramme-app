@@ -54,6 +54,8 @@ template/
       dashboard/
         ChartLine.tsx
         StatCard.tsx
+      layout/
+        StandardPageLayout.tsx
       AddItemsModal.tsx
       AIChatWidget.tsx
       AppFooter.tsx
@@ -181,7 +183,6 @@ template/
     index.css
     main.tsx
     vite-env.d.ts
-  DESIGNER_GUIDE.md
   eslint.config.js
   gitignore
   index.html
@@ -194,6 +195,7 @@ template/
   tsconfig.node.json
   vite.config.ts
 .gitignore
+.npmignore
 1.1.4
 CHANGELOG.md
 index.js
@@ -204,6 +206,50 @@ README.md
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="template/src/components/layout/StandardPageLayout.tsx">
+import React from 'react';
+import { PageHeader } from '@ramme-io/ui';
+
+interface StandardPageLayoutProps {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
+}
+
+export const StandardPageLayout: React.FC<StandardPageLayoutProps> = ({
+  title,
+  description,
+  children,
+  actions,
+  className,
+}) => {
+  return (
+    <div className={`flex flex-col h-full min-h-[calc(100vh-64px)] animate-in fade-in duration-300 ${className || ''}`}>
+      
+      {/* 1. Standardized Header Area (Sticky) */}
+      <div className="px-4 py-4 md:px-8 border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+        
+        {/* Breadcrumbs removed to prevent Router Context crash */}
+        
+        <PageHeader 
+          title={title} 
+          description={description} 
+          actions={actions}
+          className="p-0 border-none" 
+        />
+      </div>
+
+      {/* 2. Standardized Content Area */}
+      <div className="flex-1 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
+        {children}
+      </div>
+    </div>
+  );
+};
+</file>
 
 <file path="template/public/api_mock.json">
 {
@@ -1731,115 +1777,6 @@ export const AuthLayout: React.FC = () => {
 };
 </file>
 
-<file path="template/src/features/auth/pages/LoginPage.tsx">
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../AuthContext';
-// 1. Remove 'Card' from imports
-import { Button, Alert, Icon, Input } from '@ramme-io/ui';
-
-const LoginPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    if (error) setError(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    try {
-      await login(formData.email, formData.password);
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Invalid email or password.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 transition-colors duration-300">
-      
-      {/* 2. REPLACED <Card> with a native <div> 
-        - Removes conflicting library styles (border-border vs border-t-primary).
-        - Adds 'sm:w-[400px]' for better mobile responsiveness.
-        - Adds 'bg-card' explicitly for theme support.
-      */}
-      <div className="w-full sm:w-[400px] p-8 rounded-xl shadow-2xl border-t-4 border-t-primary bg-card ring-1 ring-black/5 dark:ring-white/10">
-        
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary transition-transform hover:scale-110">
-            <Icon name="layout-template" size={24} />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Welcome Back</h1>
-          <p className="text-sm text-muted-foreground mt-2">Enter your credentials to access your account</p>
-        </div>
-        
-        {/* Error State */}
-        {error && (
-          <Alert variant="danger" title="Access Denied" className="mb-6 animate-in fade-in slide-in-from-top-2">
-            {error}
-          </Alert>
-        )}
-        
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Input 
-            name="email"
-            label="Email Address" 
-            type="email" 
-            placeholder="alex@example.com" 
-            required 
-            autoComplete="email"
-            value={formData.email}
-            onChange={handleChange}
-            // Explicit background to prevent transparency issues
-            className="bg-background"
-          />
-          
-          <div className="space-y-1">
-            <Input 
-              name="password"
-              label="Password" 
-              type="password" 
-              placeholder="••••••••" 
-              required 
-              autoComplete="current-password"
-              value={formData.password}
-              onChange={handleChange}
-              className="bg-background"
-            />
-          </div>
-
-          <Button type="submit" loading={isLoading} className="w-full mt-2 font-medium" size="lg">
-            Sign In
-          </Button>
-        </form>
-
-        {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-border text-center text-sm">
-          <span className="text-muted-foreground">Don't have an account? </span>
-          <Link to="/signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
-            Create one
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default LoginPage;
-</file>
-
 <file path="template/src/features/auth/pages/SignupPage.tsx">
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -1937,127 +1874,6 @@ const SignupPage: React.FC = () => {
 };
 
 export default SignupPage;
-</file>
-
-<file path="template/src/features/auth/AuthContext.tsx">
-import React, { createContext, useContext, useState, useEffect } from 'react';
-// Import the User type from your mock data to ensure shape consistency
-import type { User } from '../../data/mockData'; 
-
-/**
- * @file AuthContext.tsx
- * @description The Central Identity Manager.
- * * ARCHITECTURAL ROLE:
- * This context provides global access to the current user's state (Identity).
- * It decouples the UI components from the specific authentication implementation.
- * * KEY FEATURES:
- * 1. **Session Persistence:** Checks localStorage on boot.
- * 2. **Data Lake Connection:** Reads from 'ramme_db_users' to validate real accounts.
- * 3. **Simulation:** Adds artificial latency to test loading states.
- */
-
-// ✅ CRITICAL FIX: Match the key used by useCrudLocalStorage and data-seeder
-const USER_DB_KEY = 'ramme_db_users'; 
-const SESSION_KEY = 'ramme_session';
-
-interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Check for existing session on mount
-  useEffect(() => {
-    const storedUser = localStorage.getItem(SESSION_KEY);
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error("Failed to parse session", e);
-        localStorage.removeItem(SESSION_KEY);
-      }
-    }
-    setIsLoading(false);
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    
-    // ✅ FIX: We now use the 'password' variable to satisfy TypeScript (ts(6133))
-    // This also adds a layer of realism to the mock validation.
-    if (!password || password.length < 3) {
-      setIsLoading(false);
-      throw new Error("Password must be at least 3 characters");
-    }
-
-    console.log(`🔐 Attempting login for: ${email}`);
-
-    // Simulate API Delay
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    // ✅ READ FROM THE CORRECT DATA LAKE
-    const storedUsers = localStorage.getItem(USER_DB_KEY);
-    
-    // Debugging: See what is actually in storage
-    if (!storedUsers) {
-      console.warn(`⚠️ Data Lake '${USER_DB_KEY}' is empty! Did you run the seeder or signup?`);
-    } else {
-      // Optional: Log count for debugging (remove in production)
-      // console.log(`✅ Data Lake found. Users in DB:`, JSON.parse(storedUsers).length);
-    }
-
-    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-    
-    // Case-insensitive email check
-    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-    if (foundUser) {
-      console.log("🎉 User found:", foundUser);
-      setUser(foundUser);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(foundUser));
-      setIsLoading(false);
-    } else {
-      console.error("❌ User NOT found. Available emails:", users.map(u => u.email));
-      setIsLoading(false);
-      throw new Error("Invalid email or password");
-    }
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem(SESSION_KEY);
-  };
-
-  return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        login, 
-        logout, 
-        isAuthenticated: !!user, 
-        isLoading 
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
 </file>
 
 <file path="template/src/features/developer/useDevTools.ts">
@@ -2289,21 +2105,16 @@ export default Welcome;
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  PageHeader, 
   Card,
   BarChart, 
   Button,
   Icon,
   Badge
 } from '@ramme-io/ui';
-
-// 1. REMOVE: The Zombie Service Import
-// import { userService } from '../../users'; 
-
-// 2. ADD: The Engine Hook & Shared Data
-// (Adjust path '../../engine/...' if needed based on your folder structure)
 import { useCrudLocalStorage } from '../../../engine/runtime/useCrudLocalStorage';
 import { SEED_USERS, type User } from '../../../data/mockData';
+// ✅ Import Core Layout
+import { StandardPageLayout } from '../../../components/layout/StandardPageLayout';
 
 // Mock Data for Chart
 const revenueData = [
@@ -2316,7 +2127,6 @@ const revenueData = [
   { name: 'Sun', revenue: 3490, cost: 4300 },
 ];
 
-// Recreating the StatCard locally (since the old one was custom)
 const StatCard = ({ title, value, trend, icon, onClick, className }: any) => (
   <Card 
     className={`p-6 flex items-center justify-between space-x-4 transition-all hover:border-primary/50 ${className || ''}`}
@@ -2338,79 +2148,73 @@ const StatCard = ({ title, value, trend, icon, onClick, className }: any) => (
 
 export const OverviewPage: React.FC = () => {
   const navigate = useNavigate();
-
-  // 3. REPLACE: Manual fetching with the Reactive Engine
-  // This automatically connects to 'ramme_db_users' and keeps the count live
   const { data: users } = useCrudLocalStorage<User>('ramme_db_users', SEED_USERS);
-  
-  // Calculate count directly from the hook data
   const userCount = users.length;
 
   return (
-    <div className="space-y-8 pb-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <PageHeader 
-             title="Dashboard" 
-             description="Overview of your application performance."
-          />
-        </div>
+    <StandardPageLayout
+      title="Dashboard"
+      description="Overview of your application performance."
+      actions={
         <div className="flex gap-2">
           <Button variant="outline" iconLeft="download">Export</Button>
           <Button iconLeft="plus">New Report</Button>
         </div>
-      </div>
+      }
+    >
+      <div className="space-y-8">
+        {/* Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard 
+            title="Total Users" 
+            value={userCount} 
+            trend={+12.5} 
+            icon="users" 
+            className="cursor-pointer bg-primary/5 border-primary/20"
+            onClick={() => navigate('/dashboard/users')}
+          />
+          <StatCard title="Total Revenue" value="$45,231" trend={+20.1} icon="dollar-sign" />
+          <StatCard title="Sales" value="+12,234" trend={+19} icon="credit-card" />
+          <StatCard title="Active Now" value="+573" trend={-4} icon="activity" />
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard 
-          title="Total Users" 
-          value={userCount} // ✅ Uses live data from Data Lake
-          trend={+12.5} 
-          icon="users" 
-          className="cursor-pointer bg-primary/5 border-primary/20"
-          onClick={() => navigate('/dashboard/users')}
-        />
-        <StatCard title="Total Revenue" value="$45,231" trend={+20.1} icon="dollar-sign" />
-        <StatCard title="Sales" value="+12,234" trend={+19} icon="credit-card" />
-        <StatCard title="Active Now" value="+573" trend={-4} icon="activity" />
-      </div>
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-7 gap-8">
+          <Card className="lg:col-span-4 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-semibold text-lg">Revenue Overview</h3>
+              <Badge variant="outline">Weekly</Badge>
+            </div>
+            <div className="h-[350px] w-full">
+              <BarChart 
+                data={revenueData} 
+                dataKeyX="name" 
+                barKeys={['revenue', 'cost']} 
+              />
+            </div>
+          </Card>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-7 gap-8">
-        <Card className="lg:col-span-4 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-lg">Revenue Overview</h3>
-            <Badge variant="outline">Weekly</Badge>
-          </div>
-          <div className="h-[350px] w-full">
-            <BarChart 
-              data={revenueData} 
-              dataKeyX="name" 
-              barKeys={['revenue', 'cost']} 
-            />
-          </div>
-        </Card>
-
-        <Card className="lg:col-span-3 p-6 flex flex-col">
-          <h3 className="font-semibold text-lg mb-4">Recent Activity</h3>
-          <div className="space-y-6 overflow-y-auto pr-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-start gap-4">
-                <span className="relative flex h-2 w-2 mt-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                </span>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium leading-none">System Alert</p>
-                  <p className="text-xs text-muted-foreground">Database backup completed.</p>
-                  <p className="text-xs text-muted-foreground pt-1">Just now</p>
+          <Card className="lg:col-span-3 p-6 flex flex-col">
+            <h3 className="font-semibold text-lg mb-4">Recent Activity</h3>
+            <div className="space-y-6 overflow-y-auto pr-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-start gap-4">
+                  <span className="relative flex h-2 w-2 mt-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-none">System Alert</p>
+                    <p className="text-xs text-muted-foreground">Database backup completed.</p>
+                    <p className="text-xs text-muted-foreground pt-1">Just now</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
-    </div>
+    </StandardPageLayout>
   );
 };
 </file>
@@ -2583,26 +2387,20 @@ import {
   Button, 
   Input, 
   Card, 
-  SectionHeader, 
   Icon, 
   Alert 
 } from '@ramme-io/ui';
 import { useAuth } from '../../auth/AuthContext';
-
-// 1. REMOVE Zombie Service
-// import { userService } from '../../users/api/user.service';
-
-// 2. ADD Engine Hooks & Data
 import { useCrudLocalStorage } from '../../../engine/runtime/useCrudLocalStorage';
 import { SEED_USERS, type User } from '../../../data/mockData';
+// ✅ Import Core Layout
+import { StandardPageLayout } from '../../../components/layout/StandardPageLayout';
 
 const ProfilePage: React.FC = () => {
   const { user } = useAuth(); 
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   
-  // 3. CONNECT to Data Lake
-  // We only need 'updateItem' here to modify the existing profile
   const { updateItem } = useCrudLocalStorage<User>('ramme_db_users', SEED_USERS);
 
   const [formData, setFormData] = useState({
@@ -2612,7 +2410,6 @@ const ProfilePage: React.FC = () => {
     bio: 'Product Designer based in San Francisco.'
   });
 
-  // Load current user data into form
   useEffect(() => {
     if (user) {
       setFormData({
@@ -2635,14 +2432,8 @@ const ProfilePage: React.FC = () => {
 
     try {
       if (user?.id) {
-        // 4. USE ENGINE to update the record in the Data Lake
-        // We merge the existing user object with the new form data
         updateItem({ ...user, ...formData } as User);
-
-        // 5. REFRESH SESSION (Local hack to update UI header immediately)
-        // In a real app, AuthContext would listen to storage changes, but this is fine for a prototype.
         localStorage.setItem('ramme_session', JSON.stringify({ ...user, ...formData }));
-        
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
       }
@@ -2654,79 +2445,82 @@ const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl space-y-6">
-      <SectionHeader title="My Profile"  />
+    <StandardPageLayout 
+      title="My Profile" 
+      description="Manage your personal information and account settings."
+    >
+      <div className="max-w-4xl space-y-6">
+        {success && (
+          <Alert variant="info" title="Changes Saved">
+            Your profile has been updated successfully.
+          </Alert>
+        )}
 
-      {success && (
-        <Alert variant="info" title="Changes Saved">
-          Your profile has been updated successfully.
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column - Avatar Card */}
-        <Card className="p-6 flex flex-col items-center text-center space-y-4 h-fit">
-          <div className="relative group cursor-pointer">
-            <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary border-4 border-background shadow-sm">
-              {formData.name.charAt(0)}
-            </div>
-            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-               <Icon name="camera" className="text-white" />
-            </div>
-          </div>
-          <div>
-            <h3 className="font-semibold text-lg">{formData.name}</h3>
-            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80 uppercase">
-              {formData.role}
-            </span>
-          </div>
-          <div className="w-full pt-4 border-t">
-            <p className="text-xs text-muted-foreground mb-4">Joined December 2024</p>
-            <Button variant="outline" className="w-full" size="sm">Change Avatar</Button>
-          </div>
-        </Card>
-
-        {/* Right Column - Form */}
-        <Card className="md:col-span-2 p-6">
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid gap-2">
-              <h3 className="font-semibold text-lg">Personal Information</h3>
-              <p className="text-sm text-muted-foreground">Update your personal details here.</p>
-            </div>
-
-            <div className="grid gap-4 py-4">
-              <Input 
-                label="Full Name" 
-                name="name" 
-                value={formData.name} 
-                onChange={handleChange} 
-              />
-              <Input 
-                label="Email Address" 
-                name="email" 
-                value={formData.email} 
-                onChange={handleChange} 
-              />
-              <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Bio</label>
-                <textarea 
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={formData.bio}
-                  disabled
-                />
-                <p className="text-[0.8rem] text-muted-foreground">Bio editing is disabled in this demo.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Left Column - Avatar Card */}
+          <Card className="p-6 flex flex-col items-center text-center space-y-4 h-fit">
+            <div className="relative group cursor-pointer">
+              <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary border-4 border-background shadow-sm">
+                {formData.name.charAt(0)}
+              </div>
+              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                 <Icon name="camera" className="text-white" />
               </div>
             </div>
-
-            <div className="flex justify-end gap-4">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Saving...' : 'Save Changes'}
-              </Button>
+            <div>
+              <h3 className="font-semibold text-lg">{formData.name}</h3>
+              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80 uppercase">
+                {formData.role}
+              </span>
             </div>
-          </form>
-        </Card>
+            <div className="w-full pt-4 border-t">
+              <p className="text-xs text-muted-foreground mb-4">Joined December 2024</p>
+              <Button variant="outline" className="w-full" size="sm">Change Avatar</Button>
+            </div>
+          </Card>
+
+          {/* Right Column - Form */}
+          <Card className="md:col-span-2 p-6">
+            <form onSubmit={handleSave} className="space-y-4">
+              <div className="grid gap-2">
+                <h3 className="font-semibold text-lg">Personal Information</h3>
+                <p className="text-sm text-muted-foreground">Update your personal details here.</p>
+              </div>
+
+              <div className="grid gap-4 py-4">
+                <Input 
+                  label="Full Name" 
+                  name="name" 
+                  value={formData.name} 
+                  onChange={handleChange} 
+                />
+                <Input 
+                  label="Email Address" 
+                  name="email" 
+                  value={formData.email} 
+                  onChange={handleChange} 
+                />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">Bio</label>
+                  <textarea 
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={formData.bio}
+                    disabled
+                  />
+                  <p className="text-[0.8rem] text-muted-foreground">Bio editing is disabled in this demo.</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-4">
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
       </div>
-    </div>
+    </StandardPageLayout>
   );
 };
 
@@ -4445,15 +4239,12 @@ const Styleguide: React.FC = () => {
   }, [sitemap]);
 
   // 2. Transform to Sidebar Items
-const navItems = useMemo<SidebarItem[]>(() => {
+  const navItems = useMemo<SidebarItem[]>(() => {
     if (!styleguideSection?.children) return [];
 
-    // ✅ FIX: Remove the explicit ": { ... }" type. Let TS infer 'child' automatically.
     return styleguideSection.children.map((child) => ({
       id: child.id,
       label: child.title,
-      // We cast to IconName because we know the string is a valid icon, 
-      // and we provide a fallback 'hash' if it's undefined.
       icon: (child.icon as IconName) || 'hash', 
       href: child.path ? `/docs/styleguide/${child.path}` : '/docs/styleguide',
     }));
@@ -4475,8 +4266,10 @@ const navItems = useMemo<SidebarItem[]>(() => {
   return (
     <div className="flex w-full min-h-[calc(100vh-7rem)]">
       {/* SIDEBAR */}
-      <div className="sticky top-[7rem] h-[calc(100vh-7rem)] z-20">
+      <div className="sticky top-[7rem] h-[calc(100vh-7rem)] z-20 hidden md:block">
         <Sidebar
+          // ✅ FIX 1: Removed 'w-64'. Let the Sidebar component manage its own width.
+          // ✅ FIX 2: Added 'h-full' so it fills the sticky container perfectly.
           className="h-full border-r border-border bg-card/50 backdrop-blur-sm"
           items={navItems}
           activeItemId={activeItemId}
@@ -4493,10 +4286,10 @@ const navItems = useMemo<SidebarItem[]>(() => {
       </div>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 min-w-0 bg-background overflow-x-hidden">
-        {/* ADDED: Max width constraint + centering */}
-        <div className="container max-w-7xl mx-auto p-6 md:p-10 animate-in fade-in duration-500">
-          <Outlet />
+      {/* ✅ FIX 3: Re-added padding (p-6) so content doesn't hit the edges. */}
+      <main className="flex-1 min-w-0 bg-background overflow-x-hidden p-6 md:p-10">
+        <div className="max-w-7xl mx-auto">
+           <Outlet />
         </div>
       </main>
     </div>
@@ -4650,7 +4443,6 @@ export default UserDrawer;
 <file path="template/src/features/users/pages/UsersPage.tsx">
 import React, { useState, useMemo } from 'react';
 import {
-  PageHeader,
   DataTable,
   Button,
   useToast,
@@ -4659,22 +4451,15 @@ import {
   type ColDef,
   type ICellRendererParams,
 } from '@ramme-io/ui';
-
-// 1. REMOVE: userService and old User types
-// import { userService } from '../api/user.service';
-// import type { User } from '../api/user.types';
-
-// 2. ADD: The Engine Hook & Shared Data
 import { useCrudLocalStorage } from '../../../engine/runtime/useCrudLocalStorage';
 import { SEED_USERS, type User } from '../../../data/mockData';
-
 import UserDrawer from '../components/UserDrawer';
+// ✅ Import Core Layout
+import { StandardPageLayout } from '../../../components/layout/StandardPageLayout';
 
 const UsersPage: React.FC = () => {
   const { addToast } = useToast();
   
-  // 3. REPLACE: Manual state fetching with the Reactive Engine
-  // This automatically loads 'ramme_db_users' and keeps it in sync.
   const { 
     data: users, 
     createItem, 
@@ -4685,8 +4470,6 @@ const UsersPage: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-
-  // (Removed refreshData & useEffect - the hook handles this automatically)
 
   const handleOpenDrawer = (user: User | null = null) => {
     setEditingUser(user);
@@ -4703,20 +4486,17 @@ const UsersPage: React.FC = () => {
   const handleSave = (_id: string, data: Partial<User>) => {
     try {
       if (editingUser) {
-        // Update existing user
         updateItem({ ...editingUser, ...data } as User);
         addToast('User updated', 'success');
       } else {
-        // Create new user (Engine handles ID generation)
         createItem({
           ...data,
-          role: data.role || 'viewer', // Ensure defaults
+          role: data.role || 'viewer',
           status: data.status || 'active',
           joinedAt: new Date().toISOString()
         } as User);
         addToast('User created', 'success');
       }
-      // Close drawer
       setIsDrawerOpen(false);
     } catch (error) {
       addToast('Error saving user', 'error');
@@ -4756,45 +4536,47 @@ const UsersPage: React.FC = () => {
         </div>
       ),
     },
-  ], [deleteItem]); // Added dependency
+  ], [deleteItem]);
 
   return (
-    <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col">
-      <PageHeader
-        title="User Management"
-        description="Manage system access and permissions."
-        actions={
-          <Button variant="primary" iconLeft="plus" onClick={() => handleOpenDrawer()}>
-            Add User
-          </Button>
-        }
-      />
-      
-      <div className="w-full max-w-sm">
-         <Input 
-            placeholder="Search users..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-         />
-      </div>
-      
-      <DataTable
-        rowData={users}
-        columnDefs={columnDefs}
-        height="100%"
-        quickFilterText={searchTerm} 
-        pagination
-        paginationPageSize={10}
-        paginationPageSizeSelector={[10, 25, 50]}
-      />
+    <StandardPageLayout
+      title="User Management"
+      description="Manage system access and permissions."
+      actions={
+        <Button variant="primary" iconLeft="plus" onClick={() => handleOpenDrawer()}>
+          Add User
+        </Button>
+      }
+    >
+      <div className="space-y-6 h-full flex flex-col">
+        <div className="w-full max-w-sm">
+           <Input 
+              placeholder="Search users..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+           />
+        </div>
+        
+        <div className="flex-1 min-h-[500px]">
+          <DataTable
+            rowData={users}
+            columnDefs={columnDefs}
+            height="100%"
+            quickFilterText={searchTerm} 
+            pagination
+            paginationPageSize={10}
+            paginationPageSizeSelector={[10, 25, 50]}
+          />
+        </div>
 
-      <UserDrawer 
-        isOpen={isDrawerOpen} 
-        onClose={() => setIsDrawerOpen(false)} 
-        user={editingUser}
-        onSave={handleSave}
-      />
-    </div>
+        <UserDrawer 
+          isOpen={isDrawerOpen} 
+          onClose={() => setIsDrawerOpen(false)} 
+          user={editingUser}
+          onSave={handleSave}
+        />
+      </div>
+    </StandardPageLayout>
   );
 };
 
@@ -4989,28 +4771,33 @@ export const SmartChart: React.FC<SmartChartProps> = ({
 
 <file path="template/src/features/GenericContentPage.tsx">
 import React from 'react';
-import { PageHeader } from '@ramme-io/ui'; // Assuming we have this
+// ✅ Import Core Layout
+import { StandardPageLayout } from '../components/layout/StandardPageLayout';
 
 interface GenericContentPageProps {
   pageTitle: string;
-  children?: React.ReactNode; // Allow for optional custom content later
+  children?: React.ReactNode; 
 }
 
 const GenericContentPage: React.FC<GenericContentPageProps> = ({ pageTitle, children }) => {
   return (
-    <div>
-      <PageHeader title={pageTitle} />
-      <div className="mt-6">
-        {children ? (
-          children
-        ) : (
-          <p className="text-muted-foreground">
-            This is a placeholder page for "{pageTitle}". Replace this content in{' '}
-            <code>src/pages/YourSpecificPage.tsx</code>.
+    <StandardPageLayout 
+      title={pageTitle}
+      description={`This is a placeholder page for "${pageTitle}".`}
+    >
+      {children ? (
+        children
+      ) : (
+        <div className="p-12 border-2 border-dashed border-border rounded-lg bg-muted/10 text-center flex flex-col items-center justify-center">
+          <p className="text-muted-foreground text-lg mb-2">
+            This page is ready for content.
           </p>
-        )}
-      </div>
-    </div>
+          <p className="text-sm text-muted-foreground">
+            Replace this file in <code>src/pages/YourSpecificPage.tsx</code>.
+          </p>
+        </div>
+      )}
+    </StandardPageLayout>
   );
 };
 
@@ -5121,27 +4908,6 @@ module.exports = {
 };
 </file>
 
-<file path="template/tailwind.config.cjs">
-const path = require('path');
-
-// This finds the absolute path to the @ramme-io/ui package's directory
-const rammeUiPath = path.dirname(require.resolve('@ramme-io/ui/package.json'));
-
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  presets: [
-    // Load the preset from the absolute path we found
-    require(path.join(rammeUiPath, 'tailwind.preset.js'))
-  ],
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-    // Scan the library's files for classes using the absolute path
-    path.join(rammeUiPath, 'dist/**/*.js'),
-  ],
-}
-</file>
-
 <file path="template/tsconfig.app.json">
 {
   "compilerOptions": {
@@ -5208,6 +4974,31 @@ module.exports = {
   },
   "include": ["../vite.config.ts"]
 }
+</file>
+
+<file path=".npmignore">
+# Ignore dependencies
+node_modules
+template/node_modules
+
+# Ignore build artifacts
+template/dist
+template/.next
+template/out
+template/build
+
+# Ignore local config files in the template
+template/package.json
+template/package-lock.json
+template/pnpm-lock.yaml
+template/yarn.lock
+template/.env
+template/.env.local
+
+# System files
+.DS_Store
+.git
+.gitignore
 </file>
 
 <file path="index.js">
@@ -5837,26 +5628,26 @@ export const DynamicBlock: React.FC<any> = ({ block }) => {
 </file>
 
 <file path="template/src/engine/renderers/DynamicPage.tsx">
-import React, { Component, type ErrorInfo, useMemo } from 'react';
-import { PageHeader, Alert, Badge } from '@ramme-io/ui';
+import React, { Component, useMemo } from 'react';
+import { Alert, Badge } from '@ramme-io/ui';
 import { useManifest, useBridgeStatus } from '../runtime/ManifestContext';
 import { getComponent } from '../../config/component-registry';
-import { getMockData } from '../../data/mockData'; // Keep as fallback
+import { getMockData } from '../../data/mockData';
 import { Wifi, WifiOff, AlertTriangle, Loader2, Database, Wand2 } from 'lucide-react';
+// ✅ Import Core Layout
+import { StandardPageLayout } from '../../components/layout/StandardPageLayout';
 
-// --- 🛠️ JIT DATA GENERATOR ---
-// This ensures the preview ALWAYS has data, even for new resources not yet in the DB.
+// ... (Keep existing generateJitData & BlockErrorBoundary logic unchanged) ...
+// (Re-pasting helper functions omitted for brevity, assume they are present)
 const generateJitData = (resourceDef: any, count = 10) => {
   if (!resourceDef) return [];
-  
   return Array.from({ length: count }).map((_, i) => {
     const row: any = { id: i + 1 };
     resourceDef.fields.forEach((f: any) => {
-      // Intelligent Mocking based on field type
       if (f.type === 'status') {
         row[f.key] = ['Active', 'Pending', 'Closed', 'Archived'][Math.floor(Math.random() * 4)];
       } else if (f.type === 'boolean') {
-        row[f.key] = Math.random() > 0.3; // 70% true
+        row[f.key] = Math.random() > 0.3; 
       } else if (f.type === 'number' || f.type === 'currency') {
         row[f.key] = Math.floor(Math.random() * 1000) + 100;
       } else if (f.type === 'date') {
@@ -5871,7 +5662,6 @@ const generateJitData = (resourceDef: any, count = 10) => {
   });
 };
 
-// --- ERROR BOUNDARY ---
 class BlockErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, error: string }> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: '' }; }
   static getDerivedStateFromError(error: any) { return { hasError: true, error: error.message }; }
@@ -5887,7 +5677,6 @@ class BlockErrorBoundary extends Component<{ children: React.ReactNode }, { hasE
   }
 }
 
-// --- MAIN RENDERER ---
 export const DynamicPage = ({ pageId }: { pageId: string }) => {
   const manifest = useManifest();
   const status = useBridgeStatus();
@@ -5903,22 +5692,21 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
     );
   }
 
+  // Define the "Live Mode" badge as an action element for the header
+  const statusBadge = (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${isLive ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500'}`}>
+      {isLive ? <Wifi size={14} className="text-green-600 animate-pulse"/> : <WifiOff size={14} />}
+      {isLive ? 'LIVE PREVIEW' : 'STATIC MODE'}
+    </div>
+  );
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-300 pb-20 p-6 md:p-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">{page.title}</h1>
-          {page.description && <p className="text-muted-foreground text-lg">{page.description}</p>}
-        </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${isLive ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500'}`}>
-          {isLive ? <Wifi size={14} className="text-green-600 animate-pulse"/> : <WifiOff size={14} />}
-          {isLive ? 'LIVE PREVIEW' : 'STATIC MODE'}
-        </div>
-      </div>
-      
-      {/* Grid Layout */}
-      <div className="grid gap-8">
+    <StandardPageLayout 
+      title={page.title} 
+      description={page.description}
+      actions={statusBadge}
+    >
+      <div className="grid gap-6 md:gap-8">
         {page.sections?.map((section: any) => (
           <section key={section.id} className="space-y-4">
             {section.title && (
@@ -5926,30 +5714,24 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{section.title}</h3>
               </div>
             )}
-            <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` }}>
+            <div className="grid gap-4 md:gap-6" style={{ gridTemplateColumns: `repeat(${section.layout?.columns || 1}, minmax(0, 1fr))` }}>
               {section.blocks.map((block: any) => {
                 const Component = getComponent(block.type);
                 const safeDataId = block.props.dataId?.toLowerCase();
                 
-                // --- 🛡️ HYBRID DATA STRATEGY ---
                 let resolvedData: any[] = [];
                 let isGenerated = false;
                 let autoColumns = undefined;
 
                 if (safeDataId) {
-                  // 1. Try Local Storage first
                   resolvedData = getMockData(safeDataId); 
-                  
-                  // 2. If empty, Generate JIT Data from Manifest
                   if (!resolvedData || resolvedData.length === 0) {
                      const resourceDef = manifest.resources?.find((r: any) => r.id.toLowerCase() === safeDataId);
                      if (resourceDef) {
                         resolvedData = generateJitData(resourceDef);
-                        isGenerated = true; // Flag for debug overlay
+                        isGenerated = true;
                      }
                   }
-
-                  // 3. Auto-Generate Table Columns
                   const resourceDef = manifest.resources?.find((r: any) => r.id.toLowerCase() === safeDataId);
                   if (resourceDef && !block.props.columnDefs) {
                     autoColumns = resourceDef.fields.map((f: any) => ({
@@ -5962,7 +5744,6 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
                 return (
                   <div key={block.id} style={{ gridColumn: `span ${block.layout?.colSpan || 1}`, gridRow: `span ${block.layout?.rowSpan || 1}` }} className="relative group">
                      <BlockErrorBoundary>
-                        {/* Debug Overlay */}
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1 pointer-events-none">
                            <div className={`text-white text-[10px] px-2 py-1 rounded backdrop-blur-md flex items-center gap-1 ${isGenerated ? 'bg-amber-600/90' : 'bg-black/80'}`}>
                               {block.type}
@@ -5984,58 +5765,8 @@ export const DynamicPage = ({ pageId }: { pageId: string }) => {
           </section>
         ))}
       </div>
-    </div>
+    </StandardPageLayout>
   );
-};
-</file>
-
-<file path="template/src/engine/runtime/data-seeder.ts">
-// ✅ Match the export from your new mockData.ts
-import { DATA_REGISTRY } from '../../data/mockData'; 
-
-/**
- * @file data-seeder.ts
- * @description The "Big Bang" for the client-side database.
- * * ARCHITECTURAL ROLE:
- * This utility ensures that the LocalStorage "Data Lake" is never empty.
- * On app launch, it checks if data exists. If not, it writes the seed data
- * from `mockData.ts` into the browser's storage.
- */
-
-// 🔒 SHARED CONSTANT: Ensure everyone uses the same key format
-const DB_PREFIX = 'ramme_mock_'; 
-
-export const initializeDataLake = () => {
-  if (typeof window === 'undefined') return;
-
-  console.groupCollapsed('🌊 [Data Lake] Initialization');
-  
-  Object.entries(DATA_REGISTRY).forEach(([key, seedData]) => {
-    // ✅ FIX: Use the prefix so getMockData() can find it
-    const storageKey = `${DB_PREFIX}${key}`; 
-    const existing = localStorage.getItem(storageKey);
-
-    if (!existing) {
-      console.log(`✨ Seeding collection: ${key} (${(seedData as any[]).length} records)`);
-      localStorage.setItem(storageKey, JSON.stringify(seedData));
-    } else {
-      console.log(`✅ Collection exists: ${key}`);
-    }
-  });
-
-  console.groupEnd();
-};
-
-/**
- * Utility to clear the lake (useful for a "Reset Data" button)
- */
-export const resetDataLake = () => {
-  Object.keys(DATA_REGISTRY).forEach((key) => {
-    const storageKey = `${DB_PREFIX}${key}`;
-    localStorage.removeItem(storageKey); 
-  });
-  console.log("🔥 Data Lake Evaporated (Cleared)");
-  window.location.reload();
 };
 </file>
 
@@ -6384,6 +6115,236 @@ const checkCondition = (value: number, condition: string): boolean => {
 };
 </file>
 
+<file path="template/src/features/auth/pages/LoginPage.tsx">
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
+// 1. Remove 'Card' from imports
+import { Button, Alert, Icon, Input } from '@ramme-io/ui';
+
+const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    if (error) setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      await login(formData.email, formData.password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 transition-colors duration-300">
+      
+      {/* 2. REPLACED <Card> with a native <div> */}
+      <div className="w-full sm:w-[400px] p-8 rounded-xl shadow-2xl border-t-4 border-t-primary bg-card ring-1 ring-black/5 dark:ring-white/10">
+        
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary transition-transform hover:scale-110">
+            <Icon name="layout-template" size={24} />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Welcome Back</h1>
+          <p className="text-sm text-muted-foreground mt-2">Enter your credentials to access your account</p>
+        </div>
+        
+        {/* Error State */}
+        {error && (
+          <Alert variant="danger" title="Access Denied" className="mb-6 animate-in fade-in slide-in-from-top-2">
+            {error}
+          </Alert>
+        )}
+        
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <Input 
+            name="email"
+            label="Email Address" 
+            type="email" 
+            placeholder="alex@example.com" 
+            required 
+            autoComplete="email"
+            value={formData.email}
+            onChange={handleChange}
+            className="bg-background"
+          />
+          
+          <div className="space-y-1">
+            <Input 
+              name="password"
+              label="Password" 
+              type="password" 
+              placeholder="••••••••" 
+              required 
+              autoComplete="current-password"
+              value={formData.password}
+              onChange={handleChange}
+              className="bg-background"
+            />
+          </div>
+
+          <Button type="submit" loading={isLoading} className="w-full mt-2 font-medium" size="lg">
+            Sign In
+          </Button>
+        </form>
+
+        {/* Footer */}
+        <div className="mt-8 pt-6 border-t border-border text-center text-sm">
+          <span className="text-muted-foreground">Don't have an account? </span>
+
+          <Link to="/auth/signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
+            Create one
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LoginPage;
+</file>
+
+<file path="template/src/features/auth/AuthContext.tsx">
+import React, { createContext, useContext, useState, useEffect } from 'react';
+// Import the User type from your mock data to ensure shape consistency
+import type { User } from '../../data/mockData';
+// ✅ IMPORT SEEDER AND DATA (Required for Self-Healing)
+import { initializeDataLake } from '../../engine/runtime/data-seeder';
+import { SEED_USERS } from '../../data/mockData';
+
+/**
+ * @file AuthContext.tsx
+ * @description The Central Identity Manager.
+ * * ARCHITECTURAL ROLE:
+ * This context provides global access to the current user's state (Identity).
+ * It decouples the UI components from the specific authentication implementation.
+ * * KEY FEATURES:
+ * 1. **Session Persistence:** Checks localStorage on boot.
+ * 2. **Data Lake Connection:** Reads from 'ramme_db_users' to validate real accounts.
+ * 3. **Simulation:** Adds artificial latency to test loading states.
+ * 4. **Self-Healing:** Automatically re-seeds data if the database is found empty during login.
+ */
+
+const USER_DB_KEY = 'ramme_db_users'; 
+const SESSION_KEY = 'ramme_session';
+
+interface AuthContextType {
+  user: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem(SESSION_KEY);
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to parse session", e);
+        localStorage.removeItem(SESSION_KEY);
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    
+    // 1. Validation
+    if (!password || password.length < 3) {
+      setIsLoading(false);
+      throw new Error("Password must be at least 3 characters");
+    }
+
+    console.log(`🔐 Attempting login for: ${email}`);
+
+    // Simulate API Delay
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    // 2. READ DATA LAKE
+    let storedUsers = localStorage.getItem(USER_DB_KEY);
+    
+    // 🛡️ SELF-HEALING LOGIC: If DB is empty/missing, re-seed it NOW.
+    // This fixes the "User not found" error on fresh installs.
+    if (!storedUsers || JSON.parse(storedUsers).length === 0) {
+      console.warn("⚠️ Data Lake empty during login. Triggering emergency re-seed...");
+      initializeDataLake(); // Force the seed
+      storedUsers = localStorage.getItem(USER_DB_KEY); // Read it again immediately
+    }
+
+    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
+    
+    // 3. Authenticate
+    // Case-insensitive email check
+    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+    if (foundUser) {
+      console.log("🎉 User found:", foundUser);
+      setUser(foundUser);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(foundUser));
+      setIsLoading(false);
+    } else {
+      // Debugging help: List available users if login fails
+      console.error("❌ User NOT found. Available emails:", users.map(u => u.email));
+      setIsLoading(false);
+      throw new Error("Invalid email or password");
+    }
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem(SESSION_KEY);
+  };
+
+  return (
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        login, 
+        logout, 
+        isAuthenticated: !!user, 
+        isLoading 
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+</file>
+
 <file path="template/src/features/datagrid/SmartTable.tsx">
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
@@ -6391,6 +6352,7 @@ import {
   Button, 
   Icon, 
   Card, 
+  Badge, 
   useToast, 
   SearchInput,
   type ColDef,
@@ -6401,7 +6363,8 @@ import { getResourceMeta } from '../../data/mockData';
 import { AutoForm } from '../../components/AutoForm';
 import { useCrudLocalStorage } from '../../engine/runtime/useCrudLocalStorage';
 import { useManifest } from '../../engine/runtime/ManifestContext';
-import type { ResourceDefinition } from '../../engine/validation/schema';
+// ✅ IMPORT FieldDefinition specifically
+import type { ResourceDefinition, FieldDefinition } from '../../engine/validation/schema';
 
 interface SmartTableProps {
   dataId: string;
@@ -6411,38 +6374,27 @@ interface SmartTableProps {
 
 export const SmartTable: React.FC<SmartTableProps> = ({ 
   dataId, 
-  title}) => {
+  title
+}) => {
   const { addToast } = useToast();
-  
   const manifest = useManifest();
 
-  // ✅ FIX: Normalize 'meta' to always match 'ResourceDefinition'
+  // --- 1. METADATA RESOLUTION ---
   const meta = useMemo<ResourceDefinition | null>(() => {
-    // 1. Try Dynamic Manifest (Preview Mode)
     const dynamicResource = manifest.resources?.find((r: ResourceDefinition) => r.id === dataId);
-    
-    if (dynamicResource) {
-      return dynamicResource;
-    }
+    if (dynamicResource) return dynamicResource;
 
-    // 2. Try Static Data (Deployed Mode)
     const staticMeta = getResourceMeta(dataId);
-    
     if (staticMeta) {
-      // ⚠️ Type Patch: Inject 'id' so it satisfies ResourceDefinition
-      // The static file uses the object key as the ID, but the type expects it inline.
       return {
         ...staticMeta,
         id: dataId,
-        // Ensure 'type' strings from mockData match the Zod enum if needed, 
-        // but typically 'text' | 'number' overlaps fine.
       } as unknown as ResourceDefinition; 
     }
-
     return null;
   }, [manifest, dataId]);
 
-  // ✅ JIT Seeder now receives a valid ResourceDefinition
+  // --- 2. DATA HYDRATION ---
   const seedData = useJustInTimeSeeder(dataId, meta);
   
   const { 
@@ -6452,18 +6404,18 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     deleteItem 
   } = useCrudLocalStorage<any>(`ramme_db_${dataId}`, seedData);
 
-  // --- UI STATE ---
+  // --- 3. UI STATE ---
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<any>(null);
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
   const [quickFilterText, setQuickFilterText] = useState('');
 
-  // --- COLUMN DEFINITIONS ---
+  // --- 4. COLUMN DEFINITIONS (Desktop) ---
   const columns = useMemo<ColDef[]>(() => {
     if (!meta?.fields) return [];
 
-    const generatedCols: ColDef[] = meta.fields.map((f: any) => {
+    const generatedCols: ColDef[] = meta.fields.map((f: FieldDefinition) => {
       const col: ColDef = {
         field: f.key,
         headerName: f.label,
@@ -6512,7 +6464,8 @@ export const SmartTable: React.FC<SmartTableProps> = ({
       pinned: 'right',
       cellRenderer: (params: any) => (
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setCurrentRecord(params.data); setIsEditOpen(true); }}>
+          {/* ✅ FIXED: Explicit React.MouseEvent type */}
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e: React.MouseEvent) => { e.stopPropagation(); setCurrentRecord(params.data); setIsEditOpen(true); }}>
             <Icon name="edit-2" size={14} className="text-slate-500" />
           </Button>
         </div>
@@ -6522,7 +6475,12 @@ export const SmartTable: React.FC<SmartTableProps> = ({
     return generatedCols;
   }, [meta]);
 
-  // --- HANDLERS ---
+  // --- 5. FIELD HELPERS (Mobile) ---
+  // ✅ FIXED: Explicit FieldDefinition type for 'f'
+  const titleField = useMemo(() => meta?.fields.find((f: FieldDefinition) => f.type === 'text' && f.key !== 'id') || meta?.fields[0], [meta]);
+  const statusField = useMemo(() => meta?.fields.find((f: FieldDefinition) => f.type === 'status'), [meta]);
+
+  // --- 6. HANDLERS ---
   const onGridReady = useCallback((params: any) => {
     setGridApi(params.api);
   }, []);
@@ -6556,14 +6514,15 @@ export const SmartTable: React.FC<SmartTableProps> = ({
   return (
     <Card className="flex flex-col h-[600px] border border-border shadow-sm overflow-hidden bg-card">
       
-      <div className="p-4 border-b border-border flex justify-between items-center gap-4 bg-muted/5">
+      {/* --- HEADER --- */}
+      <div className="p-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/5">
         {selectedRows.length > 0 ? (
           <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-200">
             <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-md">
               {selectedRows.length} Selected
             </span>
             <Button size="sm" variant="danger" onClick={handleBulkDelete} iconLeft="trash-2">
-              Delete Selected
+              Delete
             </Button>
           </div>
         ) : (
@@ -6582,36 +6541,112 @@ export const SmartTable: React.FC<SmartTableProps> = ({
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <div className="w-64">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="w-full sm:w-64">
             <SearchInput 
               placeholder="Quick search..." 
               value={quickFilterText}
-              onChange={(e) => {
+              // ✅ FIXED: Explicit ChangeEvent type
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 setQuickFilterText(e.target.value);
-                gridApi?.updateGridOptions({ quickFilterText: e.target.value });              }}
+                gridApi?.updateGridOptions({ quickFilterText: e.target.value });
+              }}
             />
           </div>
-          <div className="h-6 w-px bg-border mx-1" />
+          <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
           <Button size="sm" variant="primary" iconLeft="plus" onClick={() => { setCurrentRecord({}); setIsEditOpen(true); }}>
-            Add New
+            Add
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 w-full bg-card relative">
-        <DataTable 
-          rowData={rowData} 
-          columnDefs={columns} 
-          onGridReady={onGridReady}
-          onSelectionChanged={onSelectionChanged}
-          rowSelection="multiple"
-          pagination={true}
-          paginationPageSize={10}
-          headerHeight={48}
-          rowHeight={48}
-          enableCellTextSelection={true}
-        />
+      {/* --- CONTENT AREA --- */}
+      <div className="flex-1 w-full bg-card relative overflow-hidden">
+        
+        {/* 🖥️ DESKTOP VIEW: The Power Grid */}
+        <div className="hidden md:block h-full">
+          <DataTable 
+            rowData={rowData} 
+            columnDefs={columns} 
+            onGridReady={onGridReady}
+            onSelectionChanged={onSelectionChanged}
+            rowSelection="multiple"
+            pagination={true}
+            paginationPageSize={10}
+            headerHeight={48}
+            rowHeight={48}
+            enableCellTextSelection={true}
+          />
+        </div>
+
+        {/* 📱 MOBILE VIEW: The Card List */}
+        <div className="block md:hidden h-full overflow-y-auto p-4 space-y-3 bg-muted/5">
+          {rowData.map((row) => (
+            <div key={row.id} className="bg-background border border-border rounded-lg p-4 shadow-sm relative group">
+              
+              {/* Header: Title + Status */}
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h4 className="font-semibold text-foreground">
+                    {titleField ? row[titleField.key] : row.id}
+                  </h4>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5 opacity-70">{row.id}</p>
+                </div>
+                {statusField && (
+                  <Badge variant={
+                    ['active', 'paid'].includes(String(row[statusField.key]).toLowerCase()) ? 'success' : 
+                    ['pending'].includes(String(row[statusField.key]).toLowerCase()) ? 'warning' : 'secondary'
+                  }>
+                    {row[statusField.key]}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Body: Detailed Fields */}
+              <div className="space-y-1 text-sm text-muted-foreground mb-4">
+                 {meta?.fields
+                   // ✅ FIXED: Explicit FieldDefinition type for 'f'
+                   .filter((f: FieldDefinition) => f.key !== titleField?.key && f.key !== statusField?.key && f.key !== 'id')
+                   .slice(0, 3)
+                   .map((f: FieldDefinition) => (
+                     <div key={f.key} className="flex justify-between border-b border-dashed border-border/50 pb-1 last:border-0">
+                       <span className="opacity-70">{f.label}:</span>
+                       <span className="font-medium text-foreground">
+                         {f.type === 'currency' ? `$${Number(row[f.key]).toLocaleString()}` : 
+                          f.type === 'date' ? new Date(row[f.key]).toLocaleDateString() : row[f.key]}
+                       </span>
+                     </div>
+                   ))}
+              </div>
+
+              {/* Footer: Actions */}
+              <div className="flex gap-2 pt-2 border-t border-border/50">
+                 <Button 
+                   size="sm" 
+                   variant="outline" 
+                   className="flex-1 h-8 text-xs" 
+                   onClick={() => { setCurrentRecord(row); setIsEditOpen(true); }}
+                 >
+                   <Icon name="edit-2" size={12} className="mr-2"/> Edit
+                 </Button>
+                 <Button 
+                   size="sm" 
+                   variant="ghost" 
+                   className="text-destructive hover:bg-destructive/10 px-3 h-8"
+                   onClick={() => { if(confirm('Delete?')) deleteItem(row.id); }}
+                 >
+                   <Icon name="trash-2" size={14} />
+                 </Button>
+              </div>
+
+            </div>
+          ))}
+          
+          {rowData.length === 0 && (
+             <div className="text-center p-8 text-muted-foreground">No records found.</div>
+          )}
+        </div>
+
       </div>
 
       <AutoForm
@@ -6928,42 +6963,26 @@ export const settingsSitemap: SitemapEntry[] = [
 }
 </file>
 
-<file path="template/vite.config.ts">
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      
-      // ✅ FIX: Go up 2 levels to find the sibling 'ramme-ui' folder
-      '@ramme-io/ui': path.resolve(__dirname, '../../ramme-ui/src'),
-    },
+<file path="template/tailwind.config.cjs">
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  presets: [
+    // ✅ STANDARD: Directly require the preset from the package
+    require('@ramme-io/ui/tailwind.preset.js')
+  ],
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+    
+    // ✅ STANDARD: Point directly to node_modules relative to this config file
+    // This is the industry standard way (like how Flowbite or Shadcn work)
+    "./node_modules/@ramme-io/ui/dist/**/*.{js,ts,jsx,tsx}"
+  ],
+  theme: {
+    extend: {},
   },
-  // ✅ CRITICAL: Allow Vite to serve files outside the current project folder
-  server: {
-    fs: {
-      allow: [
-        // Allow serving files from the project root
-        '.',
-        // Allow serving files from the sibling UI library
-        '../../ramme-ui', 
-      ],
-    },
-  },
-});
-</file>
-
-<file path=".gitignore">
-node_modules
-template/node_modules
-template/dist
-template/package.json
-template/package-lock.json
-.DS_Store
+  plugins: [],
+}
 </file>
 
 <file path="CHANGELOG.md">
@@ -6987,78 +7006,6 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Navigation**: Migrated to a centralized `sitemap-driven` architecture for better AI control.
 - **Layouts**: Split layouts into `DashboardLayout` (Sidebar) and `DocsLayout` (Top Nav).
-</file>
-
-<file path="template/src/config/component-registry.tsx">
-import React from 'react';
-// ✅ 1. Import the Master Registry from the UI Library (Tier 1: Atoms)
-// This instantly pulls in Button, Card, Inputs, Layouts, Navigation, etc.
-import { AUTO_REGISTRY } from '@ramme-io/ui';
-
-// ✅ 2. Import Local "Smart Blocks" (Tier 2: Logic)
-// These exist only in the App (Starter), not the UI library.
-import { SmartTable } from '../features/datagrid/SmartTable';
-import { SmartChart } from '../features/visualizations/SmartChart';
-
-// ✅ 3. MERGE EVERYTHING
-export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
-  // A. The Entire UI Library (~50+ components)
-  ...AUTO_REGISTRY,
-
-  // B. The Smart Blocks (Data-Connected)
-  SmartTable,
-  SmartChart,
-
-  // C. Legacy Aliases (For older AI prompts/manifests)
-  'smart_table': SmartTable,
-  'smart_chart': SmartChart,
-  'stat_card': AUTO_REGISTRY['StatCard'],
-  'chart_line': AUTO_REGISTRY['LineChart'],
-  'chart_bar': AUTO_REGISTRY['BarChart'],
-  'chart_pie': AUTO_REGISTRY['PieChart'],
-};
-
-// --- COMPONENT RESOLVER ENGINE ---
-export const getComponent = (name: string) => {
-  // 1. Normalize the key to handle case-insensitivity and snake_case
-  // e.g. "page_header" -> "PageHeader", "button" -> "Button"
-  const normalizedName = name.replace(/_/g, '').toLowerCase();
-  
-  // 2. Lookup Strategy
-  // We check the exact name, then the lowercase version, then the normalized version
-  const Component = 
-    COMPONENT_REGISTRY[name] || 
-    COMPONENT_MAP_LOWER[name.toLowerCase()] || 
-    COMPONENT_MAP_NORMALIZED[normalizedName];
-
-  // 3. Safety Net (Ghost Placeholder)
-  if (!Component) {
-    console.warn(`[Registry] ❌ Unknown component: "${name}"`);
-    
-    return ({ ...props }) => (
-      <div className="p-4 border-2 border-dashed border-red-200 bg-red-50 rounded-lg flex flex-col items-center justify-center text-red-400 min-h-[100px] h-full w-full animate-in fade-in">
-        <span className="text-xs font-mono font-bold uppercase tracking-wider">{name}</span>
-        <span className="text-[10px] mt-1 opacity-75">Component Missing</span>
-        {/* Hidden debug data for developers */}
-        <div className="hidden">{JSON.stringify(props)}</div>
-      </div>
-    );
-  }
-  return Component;
-};
-
-// --- OPTIMIZATION: PRE-CALCULATED LOOKUP MAPS ---
-// We generate these once on startup so we don't map/reduce on every render.
-
-const COMPONENT_MAP_LOWER = Object.keys(COMPONENT_REGISTRY).reduce((acc, key) => {
-    acc[key.toLowerCase()] = COMPONENT_REGISTRY[key];
-    return acc;
-}, {} as Record<string, React.FC<any>>);
-
-const COMPONENT_MAP_NORMALIZED = Object.keys(COMPONENT_REGISTRY).reduce((acc, key) => {
-    acc[key.replace(/_/g, '').toLowerCase()] = COMPONENT_REGISTRY[key];
-    return acc;
-}, {} as Record<string, React.FC<any>>);
 </file>
 
 <file path="template/src/data/mockData.ts">
@@ -7236,50 +7183,51 @@ export const getResourceMeta = (id: string): ResourceMeta | null => {
 };
 </file>
 
-<file path="template/DESIGNER_GUIDE.md">
-## 🚀 Quick Start for Designers
+<file path="template/src/engine/runtime/data-seeder.ts">
+import { DATA_REGISTRY } from '../../data/mockData';
 
-You don't need to be a coding wizard to use this. Just follow these 3 steps:
+/**
+ * @file data-seeder.ts
+ * @description The "Big Bang" for the client-side database.
+ * * ARCHITECTURAL ROLE:
+ * This utility ensures that the LocalStorage "Data Lake" is never empty.
+ * On app launch, it checks if data exists. If not, it writes the seed data
+ * from `mockData.ts` into the browser's storage.
+ */
 
-### 1. Setup (Do this once)
-You need **Node.js** installed on your computer.
-- Open your terminal (Command Prompt or Terminal app).
-- Type `node -v` to see if you have it. If not, download it from [nodejs.org](https://nodejs.org).
+// 🔒 CRITICAL FIX: Changed from 'ramme_mock_' to 'ramme_db_' to match AuthContext
+const DB_PREFIX = 'ramme_db_'; 
 
-### 2. Create your Project
-Run this magic command in your terminal:
+export const initializeDataLake = () => {
+  if (typeof window === 'undefined') return;
 
-```bash
-npm create @ramme-io/app@latest
-```
+  console.groupCollapsed('🌊 [Data Lake] Initialization');
+  Object.entries(DATA_REGISTRY).forEach(([key, seedData]) => {
+    // This now generates 'ramme_db_users', matching AuthContext
+    const storageKey = `${DB_PREFIX}${key}`; 
+    const existing = localStorage.getItem(storageKey);
 
-It will ask you for a project name (e.g., my-smart-home). Type it and hit Enter.
+    if (!existing) {
+      console.log(`✨ Seeding collection: ${key} (${(seedData as any[]).length} records)`);
+      localStorage.setItem(storageKey, JSON.stringify(seedData));
+    } else {
+      console.log(`✅ Collection exists: ${key}`);
+    }
+  });
+  console.groupEnd();
+};
 
----
-
-## Run it!
-
-You will be prompted to name your project.
-
-**1. Enter the project directory**
-```bash
-cd my-new-project
-```
-
-**2. Install dependencies**
-```bash
-pnpm install
-# or npm install
-```
-
-**3. Start the dev server**
-```bash
-pnpm run dev
-```
-
-Your prototype is now running locally at `http://localhost:5173`.
-
----
+/**
+ * Utility to clear the lake (useful for a "Reset Data" button)
+ */
+export const resetDataLake = () => {
+  Object.keys(DATA_REGISTRY).forEach((key) => {
+    const storageKey = `${DB_PREFIX}${key}`;
+    localStorage.removeItem(storageKey); 
+  });
+  console.log("🔥 Data Lake Evaporated (Cleared)");
+  window.location.reload();
+};
 </file>
 
 <file path="template/README.md">
@@ -7330,6 +7278,30 @@ Go to `src/index.css` or `tailwind.config.js` to update your brand colors.
 - [Ramme UI Documentation](https://ramme.io/docs)
 - [Vite Documentation](https://vitejs.dev/)
 - [Tailwind CSS Documentation](https://tailwindcss.com/)
+</file>
+
+<file path="template/vite.config.ts">
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});
+</file>
+
+<file path=".gitignore">
+node_modules
+template/node_modules
+template/dist
+template/package.json
+template/package-lock.json
+.DS_Store
 </file>
 
 <file path="template/src/components/AppHeader.tsx">
@@ -7452,6 +7424,78 @@ const AppHeader: React.FC = () => {
 export default AppHeader;
 </file>
 
+<file path="template/src/config/component-registry.tsx">
+import React from 'react';
+// ✅ 1. Import the Master Registry from the UI Library (Tier 1: Atoms)
+// This instantly pulls in Button, Card, Inputs, Layouts, Navigation, etc.
+import { AUTO_REGISTRY } from '@ramme-io/ui';
+
+// ✅ 2. Import Local "Smart Blocks" (Tier 2: Logic)
+// These exist only in the App (Starter), not the UI library.
+import { SmartTable } from '../features/datagrid/SmartTable';
+import { SmartChart } from '../features/visualizations/SmartChart';
+
+// ✅ 3. MERGE EVERYTHING
+export const COMPONENT_REGISTRY: Record<string, React.FC<any>> = {
+  // A. The Entire UI Library (~50+ components)
+  ...AUTO_REGISTRY,
+
+  // B. The Smart Blocks (Data-Connected)
+  SmartTable,
+  SmartChart,
+
+  // C. Legacy Aliases (For older AI prompts/manifests)
+  'smart_table': SmartTable,
+  'smart_chart': SmartChart,
+  'stat_card': AUTO_REGISTRY['StatCard'],
+  'chart_line': AUTO_REGISTRY['LineChart'],
+  'chart_bar': AUTO_REGISTRY['BarChart'],
+  'chart_pie': AUTO_REGISTRY['PieChart'],
+};
+
+// --- COMPONENT RESOLVER ENGINE ---
+export const getComponent = (name: string) => {
+  // 1. Normalize the key to handle case-insensitivity and snake_case
+  // e.g. "page_header" -> "PageHeader", "button" -> "Button"
+  const normalizedName = name.replace(/_/g, '').toLowerCase();
+  
+  // 2. Lookup Strategy
+  // We check the exact name, then the lowercase version, then the normalized version
+  const Component = 
+    COMPONENT_REGISTRY[name] || 
+    COMPONENT_MAP_LOWER[name.toLowerCase()] || 
+    COMPONENT_MAP_NORMALIZED[normalizedName];
+
+  // 3. Safety Net (Ghost Placeholder)
+  if (!Component) {
+    console.warn(`[Registry] ❌ Unknown component: "${name}"`);
+    
+    return ({ ...props }) => (
+      <div className="p-4 border-2 border-dashed border-red-200 bg-red-50 rounded-lg flex flex-col items-center justify-center text-red-400 min-h-[100px] h-full w-full animate-in fade-in">
+        <span className="text-xs font-mono font-bold uppercase tracking-wider">{name}</span>
+        <span className="text-[10px] mt-1 opacity-75">Component Missing</span>
+        {/* Hidden debug data for developers */}
+        <div className="hidden">{JSON.stringify(props)}</div>
+      </div>
+    );
+  }
+  return Component;
+};
+
+// --- OPTIMIZATION: PRE-CALCULATED LOOKUP MAPS ---
+// We generate these once on startup so we don't map/reduce on every render.
+
+const COMPONENT_MAP_LOWER = Object.keys(COMPONENT_REGISTRY).reduce((acc, key) => {
+    acc[key.toLowerCase()] = COMPONENT_REGISTRY[key];
+    return acc;
+}, {} as Record<string, React.FC<any>>);
+
+const COMPONENT_MAP_NORMALIZED = Object.keys(COMPONENT_REGISTRY).reduce((acc, key) => {
+    acc[key.replace(/_/g, '').toLowerCase()] = COMPONENT_REGISTRY[key];
+    return acc;
+}, {} as Record<string, React.FC<any>>);
+</file>
+
 <file path="template/src/templates/settings/SettingsLayout.tsx">
 import React, { useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -7565,44 +7609,6 @@ const SettingsLayout: React.FC = () => {
 };
 
 export default SettingsLayout;
-</file>
-
-<file path="template/src/main.tsx">
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import App from './App.tsx';
-import { ThemeProvider, ToastProvider } from '@ramme-io/ui';
-import { AuthProvider } from './features/auth/AuthContext.tsx'; 
-import { MqttProvider } from './engine/runtime/MqttContext';
-import "@ramme-io/ui/index.css";
-import './index.css';
-import { initializeDataLake } from './engine/runtime/data-seeder';
-
-import { ManifestProvider } from './engine/runtime/ManifestContext';
-
-// This import activates all AG Grid Enterprise features
-import 'ag-grid-enterprise';
-
-initializeDataLake();
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ManifestProvider>
-    <BrowserRouter>
-      <ThemeProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <MqttProvider>
-              <App />
-            </MqttProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-    </ManifestProvider>
-  </React.StrictMode>,
-);
 </file>
 
 <file path="README.md">
@@ -7735,103 +7741,47 @@ export const appManifest: AppSpecification = {
 };
 </file>
 
-<file path="template/src/App.tsx">
-import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { generateRoutes } from './engine/renderers/route-generator';
-import { ThemeProvider } from '@ramme-io/ui';
-import { AuthProvider } from './features/auth/AuthContext';
+<file path="template/src/main.tsx">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App.tsx';
+import { ThemeProvider, ToastProvider } from '@ramme-io/ui';
+import { AuthProvider } from './features/auth/AuthContext.tsx'; 
 import { MqttProvider } from './engine/runtime/MqttContext';
+import "@ramme-io/ui/index.css"; 
+import './index.css';
 
-
-// --- 1. IMPORT AUTH CLUSTER ---
-import { AuthLayout } from './features/auth/pages/AuthLayout';
-import LoginPage from './features/auth/pages/LoginPage';
-import SignupPage from './features/auth/pages/SignupPage';
-
-// --- 2. IMPORT TEMPLATES ---
-import DashboardLayout from './templates/dashboard/DashboardLayout';
-import { dashboardSitemap } from './templates/dashboard/dashboard.sitemap';
-import { useDynamicSitemap } from './engine/runtime/useDynamicSitemap';
-import DocsLayout from './templates/docs/DocsLayout';
-import { docsSitemap } from './templates/docs/docs.sitemap';
-import SettingsLayout from './templates/settings/SettingsLayout';
-import { settingsSitemap } from './templates/settings/settings.sitemap';
-
-// Other Imports
-import ProtectedRoute from './components/ProtectedRoute';
-import NotFound from './components/NotFound';
-
-// --- 3. DATA SEEDER ---
+// 1. Data Seeder (Critical for Auth)
 import { initializeDataLake } from './engine/runtime/data-seeder';
 
-import ScrollToTop from './components/ScrollToTop';
-import HashLinkScroll from './components/HashLinkScroll';
+// 2. Manifest Provider (Critical for Builder Preview)
+import { ManifestProvider } from './engine/runtime/ManifestContext';
 
+// 3. AG Grid Enterprise
+import 'ag-grid-enterprise';
 
-function App() {
-  
-  // Trigger data seeding on mount
-  useEffect(() => {
-    initializeDataLake();
-  }, []);
+// Initialize mock data immediately on boot
+initializeDataLake();
 
-  const liveDashboardRoutes = useDynamicSitemap(dashboardSitemap);
-
-  console.log("🗺️ ROUTER MAP:", liveDashboardRoutes.map(r => ({ path: r.path, id: r.id })));
-  
-
-  return (
-    <ThemeProvider>
-      
-      <AuthProvider>
-        <MqttProvider>
-          <ScrollToTop />
-          <HashLinkScroll />
-          <Routes>
-            {/* --- NEW AUTH CLUSTER --- */}
-            {/* This handles the layout and background for all auth pages */}
-            <Route path="/auth" element={<AuthLayout />}>
-              <Route index element={<Navigate to="/auth/login" replace />} />
-              <Route path="login" element={<LoginPage />} />
-              <Route path="signup" element={<SignupPage />} />
-            </Route>
-
-            {/* Fallback for legacy /login access */}
-            <Route path="/login" element={<Navigate to="/auth/login" replace />} />
-
-            {/* --- PROTECTED APP ROUTES --- */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<Navigate to="/dashboard/welcome" replace />} />
-
-              {/* Dashboard Template */}
-              <Route path="/dashboard/*" element={<DashboardLayout />}>
-              <Route index element={<Navigate to="welcome" replace />} />
-                {generateRoutes(liveDashboardRoutes)}
-              </Route>
-
-              {/* Docs Template */}
-              <Route path="/docs/*" element={<DocsLayout />}>
-                {generateRoutes(docsSitemap)}
-              </Route>
-
-              {/* Settings Template */}
-              <Route path="/settings/*" element={<SettingsLayout />}>
-                {generateRoutes(settingsSitemap)}
-              </Route>
-            </Route>
-
-            {/* 404 Handler */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </MqttProvider>
-      </AuthProvider>
-      
-    </ThemeProvider>
-  );
-}
-
-export default App;
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    {/* 🛡️ KEEPS THE BRIDGE ALIVE: Wraps the entire app */}
+    <ManifestProvider>
+      <BrowserRouter>
+        <ThemeProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <MqttProvider>
+                <App />
+              </MqttProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    </ManifestProvider>
+  </React.StrictMode>,
+);
 </file>
 
 <file path="template/src/templates/dashboard/dashboard.sitemap.ts">
@@ -7894,8 +7844,6 @@ import PageTitleUpdater from '../../components/PageTitleUpdater';
 import AppHeader from '../../components/AppHeader';
 import { AIChatWidget } from '../../components/AIChatWidget';
 import { useWorkflowEngine } from '../../engine/runtime/useWorkflowEngine';
-
-// ✅ 1. IMPORT THE HOOK
 import { useDynamicSitemap } from '../../engine/runtime/useDynamicSitemap';
 
 const DashboardLayout: React.FC = () => {
@@ -7905,22 +7853,19 @@ const DashboardLayout: React.FC = () => {
   
   useWorkflowEngine();
 
-  // ✅ 2. GET LIVE DATA (Merges Static + Builder Data)
+  // 2. GET LIVE DATA (Merges Static + Builder Data)
   const liveSitemap = useDynamicSitemap(dashboardSitemap);
 
-  // ✅ 3. BUILD SIDEBAR FROM LIVE DATA
+  // 3. BUILD SIDEBAR FROM LIVE DATA
   const sidebarItems: SidebarItem[] = useMemo(() => {
-    // We map over 'liveSitemap' instead of 'dashboardSitemap'
     return liveSitemap.map((route) => ({
       id: route.id,
       label: route.title,
       icon: route.icon as IconName, 
-      // Handle the path logic safely
       href: route.path.startsWith('/') ? route.path : `/dashboard/${route.path}`,
     }));
-  }, [liveSitemap]); // Re-run whenever the Builder sends an update
+  }, [liveSitemap]);
 
-  // 4. Determine Active Item
   const activeItemId = useMemo(() => {
     const active = sidebarItems.find(item => 
       item.href !== '/dashboard' && location.pathname.startsWith(item.href!)
@@ -7929,7 +7874,6 @@ const DashboardLayout: React.FC = () => {
   }, [location.pathname, sidebarItems]);
 
   return (
-    // ✅ 5. PASS LIVE SITEMAP TO CONTEXT (For Breadcrumbs/Titles)
     <SitemapProvider value={liveSitemap}>
       <PageTitleUpdater />
       
@@ -7937,7 +7881,7 @@ const DashboardLayout: React.FC = () => {
         
         <Sidebar
           className="relative border-border"
-          items={sidebarItems} // Now contains your new page!
+          items={sidebarItems}
           activeItemId={activeItemId}
           onNavigate={(item) => {
             if (item.href) navigate(item.href);
@@ -7956,7 +7900,10 @@ const DashboardLayout: React.FC = () => {
 
         <div className="flex flex-col flex-1 overflow-hidden">
           <AppHeader />
-          <main className="flex-1 overflow-y-auto p-8 bg-muted/20">
+          {/* ✅ FIX: Removed 'p-8'. Changed to 'p-0' (implied) or just removed class.
+              We keep 'bg-muted/20' for the app background. 
+              The StandardPageLayout inside Outlet now controls the margins. */}
+          <main className="flex-1 overflow-y-auto bg-muted/20">
             <Outlet />
           </main>
         </div>
@@ -7980,6 +7927,105 @@ const DashboardLayout: React.FC = () => {
 export default DashboardLayout;
 </file>
 
+<file path="template/src/App.tsx">
+import { useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { generateRoutes } from './engine/renderers/route-generator';
+import { ThemeProvider } from '@ramme-io/ui';
+import { AuthProvider } from './features/auth/AuthContext';
+import { MqttProvider } from './engine/runtime/MqttContext';
+
+// --- 1. IMPORT AUTH CLUSTER ---
+import { AuthLayout } from './features/auth/pages/AuthLayout';
+import LoginPage from './features/auth/pages/LoginPage';
+import SignupPage from './features/auth/pages/SignupPage';
+
+// --- 2. IMPORT TEMPLATES ---
+import DashboardLayout from './templates/dashboard/DashboardLayout';
+import { dashboardSitemap } from './templates/dashboard/dashboard.sitemap';
+import { useDynamicSitemap } from './engine/runtime/useDynamicSitemap';
+import DocsLayout from './templates/docs/DocsLayout';
+import { docsSitemap } from './templates/docs/docs.sitemap';
+import SettingsLayout from './templates/settings/SettingsLayout';
+import { settingsSitemap } from './templates/settings/settings.sitemap';
+
+// Other Imports
+import ProtectedRoute from './components/ProtectedRoute';
+import NotFound from './components/NotFound';
+
+// --- 3. DATA SEEDER ---
+import { initializeDataLake } from './engine/runtime/data-seeder';
+
+import ScrollToTop from './components/ScrollToTop';
+import HashLinkScroll from './components/HashLinkScroll';
+
+function App() {
+  
+  // Trigger data seeding on mount
+  useEffect(() => {
+    initializeDataLake();
+  }, []);
+
+  const liveDashboardRoutes = useDynamicSitemap(dashboardSitemap);
+
+  console.log("🗺️ ROUTER MAP:", liveDashboardRoutes.map(r => ({ path: r.path, id: r.id })));
+
+  return (
+    <ThemeProvider>
+      
+      <AuthProvider>
+        <MqttProvider>
+          <ScrollToTop />
+          <HashLinkScroll />
+          <Routes>
+            {/* --- NEW AUTH CLUSTER --- */}
+            {/* This handles the layout and background for all auth pages */}
+            <Route path="/auth" element={<AuthLayout />}>
+              <Route index element={<Navigate to="/auth/login" replace />} />
+              <Route path="login" element={<LoginPage />} />
+              <Route path="signup" element={<SignupPage />} />
+            </Route>
+
+            {/* Fallback for legacy /login access */}
+            <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+            
+            {/* ✅ FIX: Redirect legacy /signup to the new location */}
+            <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
+
+            {/* --- PROTECTED APP ROUTES --- */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Navigate to="/dashboard/welcome" replace />} />
+
+              {/* Dashboard Template */}
+              <Route path="/dashboard/*" element={<DashboardLayout />}>
+                <Route index element={<Navigate to="welcome" replace />} />
+                {generateRoutes(liveDashboardRoutes)}
+              </Route>
+
+              {/* Docs Template */}
+              <Route path="/docs/*" element={<DocsLayout />}>
+                {generateRoutes(docsSitemap)}
+              </Route>
+
+              {/* Settings Template */}
+              <Route path="/settings/*" element={<SettingsLayout />}>
+                {generateRoutes(settingsSitemap)}
+              </Route>
+            </Route>
+
+            {/* 404 Handler */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </MqttProvider>
+      </AuthProvider>
+      
+    </ThemeProvider>
+  );
+}
+
+export default App;
+</file>
+
 <file path="template/pkg.json">
 {
   "name": "ramme-app",
@@ -8000,11 +8046,13 @@ export default DashboardLayout;
     "ai": "^3.0.0",
     "framer-motion": "^11.0.0",
     "fs-extra": "^11.2.0",
+    "lucide-react": "^0.454.0",
     "mqtt": "^5.3.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-resizable-panels": "^2.0.9",
     "react-router-dom": "^6.22.0",
+    "recharts": "^2.12.7",
     "uuid": "^13.0.0",
     "zod": "^3.22.0",
     "zustand": "^4.5.7"
@@ -8027,7 +8075,7 @@ export default DashboardLayout;
 <file path="package.json">
 {
   "name": "@ramme-io/create-app",
-  "version": "1.2.4",
+  "version": "1.2.8",
   "type": "module",
   "bin": {
     "create-ramme-app": "./index.js"
